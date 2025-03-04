@@ -1,9 +1,7 @@
-import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Image, Pressable, ViewStyle, TextStyle, ImageStyle, useWindowDimensions } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-import { NavigationProp, ParamListBase } from '@react-navigation/native';
+import { router } from 'expo-router';
 
-export default function ({ navigation }: { navigation: NavigationProp<ParamListBase, string> }) {
+export default function ModulesScreen() {
   const { width, height } = useWindowDimensions();
   
   const itemWidth = (width / 3) - 45;
@@ -27,9 +25,9 @@ export default function ({ navigation }: { navigation: NavigationProp<ParamListB
       {/* First Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => navigation.navigate("Module102Screen")}>
+          <Pressable onPress={() => router.push("/Module102Screen")}>
             <Image 
-              source={require('@/assets/images/interfaceIcons_Artboard1.png')} 
+              source={require('../../assets/images/interfaceIcons_Artboard1.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
             />
             <Text style={styles.titleText}>Module 102</Text>
@@ -37,9 +35,9 @@ export default function ({ navigation }: { navigation: NavigationProp<ParamListB
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => navigation.navigate('Module103Screen')}>
+          <Pressable onPress={() => router.push('/Module103Screen')}>
             <Image 
-              source={require('@/assets/images/interfaceIcons_Artboard2.png')} 
+              source={require('../../assets/images/interfaceIcons_Artboard2.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
             />
             <Text style={styles.titleText}>Module 103</Text>
@@ -47,9 +45,9 @@ export default function ({ navigation }: { navigation: NavigationProp<ParamListB
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => navigation.navigate('Module104Screen')}>
+          <Pressable onPress={() => router.push('/Module104Screen')}>
             <Image 
-              source={require('@/assets/images/interfaceIcons_Artboard3.png')} 
+              source={require('../../assets/images/interfaceIcons_Artboard3.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
             />
             <Text style={styles.titleText}>Module 104</Text>
@@ -60,9 +58,9 @@ export default function ({ navigation }: { navigation: NavigationProp<ParamListB
       {/* Second Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => navigation.navigate('Module202Screen')}>
+          <Pressable onPress={() => router.push('/Module202Screen')}>
             <Image 
-              source={require('@/assets/images/interfaceIcons_Artboard4.png')} 
+              source={require('../../assets/images/interfaceIcons_Artboard4.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
             />
             <Text style={styles.titleText}>Module 202</Text>
@@ -70,9 +68,9 @@ export default function ({ navigation }: { navigation: NavigationProp<ParamListB
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => navigation.navigate('Module203Screen')}>
+          <Pressable onPress={() => router.push('/Module203Screen')}>
             <Image 
-              source={require('@/assets/images/interfaceIcons_Artboard5.png')} 
+              source={require('../../assets/images/interfaceIcons_Artboard5.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
             />
             <Text style={styles.titleText}>Module 203</Text>
@@ -80,9 +78,9 @@ export default function ({ navigation }: { navigation: NavigationProp<ParamListB
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => navigation.navigate('Module204Screen')}>
+          <Pressable onPress={() => router.push('/Module204Screen')}>
             <Image 
-              source={require('@/assets/images/interfaceIcons_Artboard6.png')} 
+              source={require('../../assets/images/interfaceIcons_Artboard6.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
             />
             <Text style={styles.titleText}>Module 204</Text>

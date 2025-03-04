@@ -1,150 +1,113 @@
-//import React from "react";
-import React, { useEffect, useState, setState } from 'react';
-import { View, ActivityIndicator, RefreshControl, StyleSheet, Text, SafeAreaView, Button, FlatList, Pressable } from 'react-native';
-//import Constants from 'expo-constants';
-import * as WebBrowser from 'expo-web-browser';
-import {
-  Dimensions,
-  Image,
-  //Slider,
-  //SafeAreaView,
-  
-  Alert,
-  TextInput
- 
-  //VirtualizedList
-} from "react-native";
-import { Asset } from "expo-asset";
-import Constants from 'expo-constants';
-import { Audio, Video } from "expo-av";
-import * as Font from "expo-font";
-//import List from "../components/List2";
-import { MaterialIcons } from "@expo/vector-icons";
-//import SearchBar from 'react-native-searchbar';
-import axios from 'axios';
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, ViewStyle, ImageStyle, TextStyle } from 'react-native';
+import { router } from 'expo-router';
 
-
-export default function App() {
-
-  const [isLoading, setLoading] = useState(true);
-  const [data, setData] = useState([]);
-
-  useEffect(() => {
-  axios.get('https://placements.bsms.ac.uk/api/Dissection')
-    //axios.get('http://192.168.1.20:8000/api/Video')
-    //axios.get('http://127.0.0.1:8000/api/placements')
-      .then(({ data }) => {
-        console.log(data);
-        //console.log("defaultApp -> data", data.name)
-        setData(data)
-      })
-      .catch((error) => console.error(error))
-      .finally(() => setLoading(false));
-  }, []);
-
-  
-
-  return (
-   
-    <View style={{ flex: 1, padding: 24, backgroundColor: '#000', }}>
-    <Text style={{ color: '#FFF', fontSize: 20, marginTop: 10, marginBottom:15, textAlign:"center"}}>ANATOMY DISSECTION VIDEOS</Text>
-      {isLoading ? <ActivityIndicator /> : (
-        <FlatList 
-          data={data}
-          renderItem={({ item }) =>  {
-            console.log("item", item)
-            return ( 
-            
-                <Pressable onPress = {() => WebBrowser.openBrowserAsync(item.video)}>
-               
-               <Text style={{ flex: 1,  
-              color:'#bcba40',
-              backgroundColor: '#000',
-                borderColor: '#bcba40',
-                borderStyle:'dotted',
-                borderRadius: 8,
-                borderWidth: 1,
-                padding: 8,
-                marginVertical: 5,
-                marginHorizontal: 8,
-                marginBottom: 5
-                }}>{item.name}
-                </Text>
-              
-              </Pressable> 
-           
-            )
-          }}
-          
-        />
-      )}
-    </View>
-   
-  );
-
- 
-
-
-//styles
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    //marginTop: Constants.statusBarHeight,
-    backgroundColor: '#000',
-  },
-
-item: {
-  backgroundColor: '#FAD607',
-  borderRadius: 20,
-  padding: 8,
-  marginVertical: 5,
-  marginHorizontal: 8,
-  marginBottom: 15,
-},
-Logo: {
-  height: 80,
-  alignItems: 'center',
-},
-name: {
-  fontFamily: 'Verdana',
-  fontSize: 20,
-  //fontWeight: "bold",
-  color: "#000",
-
-},
-button: {
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 12,
-  paddingHorizontal: 32,
-  borderRadius: 20,
-  elevation: 3,
-  backgroundColor: 'black',
-},
-/*   listcontainer: {
-  flexDirection: 'row',
-  backgroundColor: '#bcba40',
-  //borderColor: '#FAD607',
-  //paddingTop: 5,
-  borderRadius: 20,
-  padding: 15,
-  marginVertical: 5,
-  marginHorizontal: 8,
-  marginBottom: 15,
-  alignItems: 'center', 
-  fontWeight: 'bold',
-  fontFamily: 'Verdana',
-  //fontFamily: 'Roboto-Regular',
-  fontSize: 20, 
- }, */
+const createBoxBorderStyle = (height: number, width: number): ViewStyle => ({
+    marginTop: 30,
+    width: (width / 3) - 10,
+    height: '40%',
+    borderColor: '#bcba40',
+    borderStyle: 'dotted',
+    borderRadius: 8,
+    borderWidth: 1,
+    marginHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
 });
 
+export default function VideoRScreen() {
+    const { height, width } = Dimensions.get('window');
+    return (
+        <View style={styles.v_container}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', flexWrap: 'wrap' }}>
+                <View style={createBoxBorderStyle(height, width)}>
+                    <TouchableOpacity onPress={() => router.push('/IntroductionsScreen')}>
+                        <Image source={require('../../assets/images/interfaceIcons_Artboard25.png')} style={styles.IconStyle} />
+                        <Text style={styles.titleText}>INTRODUCTION TO...</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={createBoxBorderStyle(height, width)}>
+                    <TouchableOpacity onPress={() => router.push('/HeadNeckScreen')}>
+                        <Image source={require('../../assets/images/interfaceIcons_Artboard4.png')} style={styles.IconStyle} />
+                        <Text style={styles.titleText}>HEAD AND NECK</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={createBoxBorderStyle(height, width)}>
+                    <TouchableOpacity onPress={() => router.push('/ENTScreen')}>
+                        <Image source={require('../../assets/images/interfaceIcons_Artboard35.png')} style={styles.IconStyle} />
+                        <Text style={styles.titleText}>EAR NOSE AND THROAT</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={createBoxBorderStyle(height, width)}>
+                    <TouchableOpacity onPress={() => router.push('/ThoraxScreen')}>
+                        <Image source={require('../../assets/images/interfaceIcons_Artboard2.png')} style={styles.IconStyle} />
+                        <Text style={styles.titleText}>THORAX</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={createBoxBorderStyle(height, width)}>
+                    <TouchableOpacity onPress={() => router.push('/AbdoPelvisScreen')}>
+                        <Image source={require('../../assets/images/interfaceIcons_Artboard24.png')} style={styles.IconStyle} />
+                        <Text style={styles.titleText}>ABDOMEN AND PELVIS</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={createBoxBorderStyle(height, width)}>
+                    <TouchableOpacity onPress={() => router.push('/BackLimbsScreen')}>
+                        <Image source={require('../../assets/images/interfaceIcons_Artboard6.png')} style={styles.IconStyle} />
+                        <Text style={styles.titleText}>BACK AND LIMBS</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={createBoxBorderStyle(height, width)}>
+                    <TouchableOpacity onPress={() => router.push('/EmbryologyScreen')}>
+                        <Image source={require('../../assets/images/interfaceIcons_Artboard1.png')} style={styles.IconStyle} />
+                        <Text style={styles.titleText}>EMBRYOLOGY</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={createBoxBorderStyle(height, width)}>
+                    <TouchableOpacity onPress={() => router.push('/Video360Screen')}>
+                        <Image source={require('../../assets/images/interfaceIcons_Artboard28.png')} style={styles.IconStyle} />
+                        <Text style={styles.titleText}>360 VIDEO</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={createBoxBorderStyle(height, width)}>
+                    <TouchableOpacity onPress={() => router.push('/PubDisScreen')}>
+                        <Image source={require('../../assets/images/interfaceIcons_Artboard34.png')} style={styles.IconStyle} />
+                        <Text style={styles.titleText}>PUBLIC DISPLAY</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </View>
+    );
 }
 
-
-
-
-
-
-
-
+const styles = StyleSheet.create({
+    box: {
+        width: 950,
+        paddingTop: 60,
+        paddingLeft: 20,
+        justifyContent: 'center',
+    },
+    Logo: {
+        height: 80,
+        alignItems: 'center',
+    },
+    IconStyle: {
+        width: 110,
+        height: 110,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    v_container: {
+        flex: 1,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        paddingTop: 5,
+        backgroundColor: '#000000',
+    },
+    titleText: {
+        fontFamily: 'Helvetica',
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#bcba40',
+        justifyContent: 'center',
+        paddingLeft: 30,
+    },
+});

@@ -21,8 +21,17 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: '#bcba40',
+        tabBarInactiveTintColor: '#9D9D9C',
         headerShown: useClientOnlyValue(false, true),
+        headerStyle: {
+          backgroundColor: '#000000',
+        },
+        headerTintColor: '#bcba40',
+        tabBarStyle: {
+          backgroundColor: '#000000',
+          borderTopColor: '#bcba40',
+        },
       }}>
       <Tabs.Screen
         name="index"
@@ -36,7 +45,7 @@ export default function TabLayout() {
                   <FontAwesome
                     name="info-circle"
                     size={25}
-                    color={Colors[colorScheme ?? 'light'].text}
+                    color="#bcba40"
                     style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
                   />
                 )}
