@@ -22,15 +22,13 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          title: 'Home',
+          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
           headerRight: () => (
             <Link href="/modal" asChild>
               <Pressable>
@@ -48,10 +46,52 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="ModulesScreen"
         options={{
-          title: 'Tab Two',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          title: 'Modules',
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="book" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="ResourcesScreen"
+        options={{
+          title: 'Resources',
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="folder-open" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="CoursesScreen"
+        options={{
+          title: 'Courses',
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="graduation-cap" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="SpotterScreen"
+        options={{
+          title: 'Spotter',
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="trophy" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="VideoRScreen"
+        options={{
+          title: 'Video',
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="video-camera" color={color} />
+          ),
         }}
       />
     </Tabs>
