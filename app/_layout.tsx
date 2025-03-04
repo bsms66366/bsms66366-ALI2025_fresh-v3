@@ -53,20 +53,6 @@ function RootLayoutNav() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        <Stack.Screen 
-          name="screens/search" 
-          options={{ 
-            title: 'Search',
-            headerShown: true,
-          }} 
-        />
-        <Stack.Screen 
-          name="screens/RegionsScreen" 
-          options={{ 
-            title: 'Video Screen',
-            headerShown: true,
-          }} 
-        />
       </Stack>
     </ThemeProvider>
   );

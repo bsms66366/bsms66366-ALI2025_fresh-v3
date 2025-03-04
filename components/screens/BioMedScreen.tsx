@@ -6,7 +6,7 @@ import axios from 'axios';
 export default function App() {
   const [isLoading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const filteredData = data.filter(item => item.category_id === 12);
+  const filteredData = data.filter(item => item.category_id === 15);
 
   useEffect(() => {
     axios
@@ -21,9 +21,6 @@ export default function App() {
 
   return (
     <View style={{ flex: 1, padding: 24, backgroundColor: '#000' }}>
-      <Text style={{ color: '#FFF', fontSize: 20, marginTop: 10, marginBottom: 15, textAlign: 'center' }}>
-        MEDICAL NEUROSCIENCE
-      </Text>
       {isLoading ? (
         <ActivityIndicator />
       ) : (

@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, ViewStyle, ImageStyle, TextStyle } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, ViewStyle } from 'react-native';
 import { router } from 'expo-router';
+import { PubDisScreen } from '@/components/screens/PubDisScreen';
 
 const createBoxBorderStyle = (height: number, width: number): ViewStyle => ({
     marginTop: 30,
@@ -20,55 +21,55 @@ export default function VideoRScreen() {
         <View style={styles.v_container}>
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', flexWrap: 'wrap' }}>
                 <View style={createBoxBorderStyle(height, width)}>
-                    <TouchableOpacity onPress={() => router.push('/IntroductionsScreen')}>
+                    <TouchableOpacity onPress={() => router.push('/screens/IntroductionsScreen')}>
                         <Image source={require('../../assets/images/interfaceIcons_Artboard25.png')} style={styles.IconStyle} />
                         <Text style={styles.titleText}>INTRODUCTION TO...</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={createBoxBorderStyle(height, width)}>
-                    <TouchableOpacity onPress={() => router.push('/HeadNeckScreen')}>
+                    <TouchableOpacity onPress={() => router.push('/screens/HeadNeckScreen')}>
                         <Image source={require('../../assets/images/interfaceIcons_Artboard4.png')} style={styles.IconStyle} />
                         <Text style={styles.titleText}>HEAD AND NECK</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={createBoxBorderStyle(height, width)}>
-                    <TouchableOpacity onPress={() => router.push('/ENTScreen')}>
+                    <TouchableOpacity onPress={() => router.push('/screens/ENTScreen')}>
                         <Image source={require('../../assets/images/interfaceIcons_Artboard35.png')} style={styles.IconStyle} />
                         <Text style={styles.titleText}>EAR NOSE AND THROAT</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={createBoxBorderStyle(height, width)}>
-                    <TouchableOpacity onPress={() => router.push('/ThoraxScreen')}>
+                    <TouchableOpacity onPress={() => router.push('/screens/ThoraxScreen')}>
                         <Image source={require('../../assets/images/interfaceIcons_Artboard2.png')} style={styles.IconStyle} />
                         <Text style={styles.titleText}>THORAX</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={createBoxBorderStyle(height, width)}>
-                    <TouchableOpacity onPress={() => router.push('/AbdoPelvisScreen')}>
+                    <TouchableOpacity onPress={() => router.push('/screens/AbdoPelvisScreen')}>
                         <Image source={require('../../assets/images/interfaceIcons_Artboard24.png')} style={styles.IconStyle} />
                         <Text style={styles.titleText}>ABDOMEN AND PELVIS</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={createBoxBorderStyle(height, width)}>
-                    <TouchableOpacity onPress={() => router.push('/BackLimbsScreen')}>
+                    <TouchableOpacity onPress={() => router.push('/screens/BackLimbsScreen')}>
                         <Image source={require('../../assets/images/interfaceIcons_Artboard6.png')} style={styles.IconStyle} />
                         <Text style={styles.titleText}>BACK AND LIMBS</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={createBoxBorderStyle(height, width)}>
-                    <TouchableOpacity onPress={() => router.push('/EmbryologyScreen')}>
+                    <TouchableOpacity onPress={() => router.push('/screens/EmbryologyScreen')}>
                         <Image source={require('../../assets/images/interfaceIcons_Artboard1.png')} style={styles.IconStyle} />
                         <Text style={styles.titleText}>EMBRYOLOGY</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={createBoxBorderStyle(height, width)}>
-                    <TouchableOpacity onPress={() => router.push('/Video360Screen')}>
+                    <TouchableOpacity onPress={() => router.push('/screens/Video360Screen')}>
                         <Image source={require('../../assets/images/interfaceIcons_Artboard28.png')} style={styles.IconStyle} />
                         <Text style={styles.titleText}>360 VIDEO</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={createBoxBorderStyle(height, width)}>
-                    <TouchableOpacity onPress={() => router.push('/PubDisScreen')}>
+                    <TouchableOpacity onPress={() => <PubDisScreen />}>
                         <Image source={require('../../assets/images/interfaceIcons_Artboard34.png')} style={styles.IconStyle} />
                         <Text style={styles.titleText}>PUBLIC DISPLAY</Text>
                     </TouchableOpacity>

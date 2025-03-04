@@ -1,37 +1,18 @@
-//import React from "react";
-import React, { useEffect, useState, setState } from 'react';
-import { View, ActivityIndicator, RefreshControl, StyleSheet, Text, SafeAreaView, Button, FlatList, Pressable } from 'react-native';
-//import Constants from 'expo-constants';
+import React, { useEffect, useState } from 'react';
+import { View, ActivityIndicator, StyleSheet, Text, FlatList, Pressable, Image } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import {
-  Dimensions,
-  Image,
-  //Slider,
-  //SafeAreaView,
-  
-  Alert,
-  TextInput
- 
-  //VirtualizedList
-} from "react-native";
-import { Asset } from "expo-asset";
-import Constants from 'expo-constants';
-import { Audio, Video } from "expo-av";
-import * as Font from "expo-font";
-//import List from "../components/List2";
-import { MaterialIcons } from "@expo/vector-icons";
-//import SearchBar from 'react-native-searchbar';
 import axios from 'axios';
-
 
 export default function App() {
 
   const [isLoading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const filteredData = data.filter(item => item.category_id === 18);
+  const filteredData = data.filter(item => item.category_id === 30);
 
   useEffect(() => {
   axios.get('https://placements.bsms.ac.uk/api/Dissection')
+    //axios.get('http://192.168.1.20:8000/api/Video')
+    //axios.get('http://127.0.0.1:8000/api/placements')
       .then(({ data }) => {
         console.log(data);
         //console.log("defaultApp -> data", data.name)
@@ -45,9 +26,10 @@ export default function App() {
 
   return (
    
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 15, backgroundColor: '#000', }}>
-    <Image source={require('../../assets/images/interfaceIcons_Artboard34.png')}style={{ width: 250, height: 250, justifyContent: 'center',}} />
-    <Text style={{ color: '#FFF', fontSize: 20, marginTop: 10, marginBottom:15, textAlign:"center"}}>PUBLIC DISPLAY VIDEOS</Text>
+<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 15, backgroundColor: '#000' }}>
+  <Image source={require('../../assets/images/interfaceIcons_Artboard25.png')}style={{ width: 250, height: 250, justifyContent: 'center',}} />
+
+    <Text style={{ color: '#FFF', fontSize: 20, marginTop: 10, marginBottom:15, textAlign:"center"}}>INTRODUCTION TO DISSECTION VIDEOS</Text>
       {isLoading ? <ActivityIndicator /> : (
         <FlatList 
           data={filteredData}
@@ -57,18 +39,7 @@ export default function App() {
             
                 <Pressable onPress = {() => WebBrowser.openBrowserAsync(item.video)}>
                
-               <Text style={{ flex: 1,  
-              color:'#bcba40',
-              backgroundColor: '#000',
-                borderColor: '#bcba40',
-                borderStyle:'dotted',
-                borderRadius: 8,
-                borderWidth: 1,
-                padding: 8,
-                marginVertical: 5,
-                marginHorizontal: 8,
-                marginBottom: 5
-                }}>{item.name}
+               <Text style={styles.listItem}>{item.name}
                 </Text>
               
               </Pressable> 
@@ -78,14 +49,11 @@ export default function App() {
           
         />
       )}
-    </View>
-   
+    </View> 
   );
 
+      
  
-
-
-//styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -93,13 +61,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
 
-item: {
-  backgroundColor: '#FAD607',
-  borderRadius: 20,
-  padding: 8,
-  marginVertical: 5,
-  marginHorizontal: 8,
-  marginBottom: 15,
+listItem: {
+  flex: 1,  
+  color:'#bcba40',
+  backgroundColor: '#000',
+    borderColor: '#bcba40',
+    borderStyle:'dotted',
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 8,
+    marginVertical: 5,
+    marginHorizontal: 8,
+    marginBottom: 5
 },
 Logo: {
   height: 80,
@@ -140,11 +113,3 @@ button: {
 });
 
 }
-
-
-
-
-
-
-
-

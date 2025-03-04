@@ -1,16 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, Text, Pressable, FlatList } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import { router } from 'expo-router';
 import axios from 'axios';
 
-export default function App() {
+interface Note {
+  category_id: number;
+  name: string;
+  urlCode: string;
+}
+
+export default function PAScreen() {
   const [isLoading, setLoading] = useState(true);
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<Note[]>([]);
   const filteredData = data.filter(item => item.category_id === 2);
 
   useEffect(() => {
     axios
-      .get('https://placements.bsms.ac.uk/api/Notes')
+      .get<Note[]>('https://placements.bsms.ac.uk/api/Notes')
       .then(({ data }) => {
         console.log(data);
         setData(data);
@@ -22,7 +29,7 @@ export default function App() {
   return (
     <View style={{ flex: 1, padding: 24, backgroundColor: '#000' }}>
       <Text style={{ color: '#FFF', fontSize: 20, marginTop: 10, marginBottom: 15, textAlign: 'center' }}>
-       PHYSICANS ASSOCIATES PROGRAM
+        PHYSICIANS ASSOCIATES PROGRAM
       </Text>
       {isLoading ? (
         <ActivityIndicator />
@@ -50,6 +57,7 @@ export default function App() {
               </Text>
             </Pressable>
           )}
+          keyExtractor={(item, index) => index.toString()}
         />
       )}
     </View>

@@ -1,9 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Image, Pressable, ViewStyle, TextStyle, ImageStyle, useWindowDimensions } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { NavigationProp, ParamListBase } from '@react-navigation/native';
+import { router } from 'expo-router';
 
-export default function ResourcesScreen({ navigation }: { navigation: NavigationProp<ParamListBase, string> }) {
+export default function ResourcesScreen() {
   const { width, height } = useWindowDimensions();
   
   const itemWidth = (width / 3) - 45;
@@ -37,7 +37,7 @@ export default function ResourcesScreen({ navigation }: { navigation: Navigation
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => navigation.navigate('SessionNotesScreen')}>
+          <Pressable onPress={() => router.push("/screens/SessionNotesScreen")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard27.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -47,7 +47,7 @@ export default function ResourcesScreen({ navigation }: { navigation: Navigation
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => navigation.navigate('SearchScreen')}>
+          <Pressable onPress={() => router.push("/screens/SearchScreen")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard9.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
