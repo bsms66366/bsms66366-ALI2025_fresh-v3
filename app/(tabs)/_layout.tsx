@@ -79,6 +79,7 @@ export default function TabLayout() {
         name="SpotterScreen"
         options={{
           title: 'Spotter',
+          headerShown: false,
           tabBarIcon: ({ color }) => (
             <TabBarIcon name="trophy" color={color} />
           ),
