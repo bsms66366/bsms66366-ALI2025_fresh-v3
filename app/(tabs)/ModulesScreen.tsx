@@ -25,7 +25,7 @@ export default function ModulesScreen() {
       {/* First Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/screens/Module102Screen")}>
+          <Pressable onPress={() => router.push("/(tabs)/screens/Module102Screen")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard1.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -35,7 +35,7 @@ export default function ModulesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/screens/Module103Screen")}>
+          <Pressable onPress={() => router.push('/(tabs)/screens/Module103Screen')}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard2.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -45,7 +45,7 @@ export default function ModulesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/screens/Module104Screen")}>
+          <Pressable onPress={() => router.push('/(tabs)/screens/Module104Screen')}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard3.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -58,7 +58,7 @@ export default function ModulesScreen() {
       {/* Second Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/screens/Module202Screen")}>
+          <Pressable onPress={() => router.push('/(tabs)/screens/Module202Screen')}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard4.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -68,7 +68,7 @@ export default function ModulesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/screens/Module203Screen")}>
+          <Pressable onPress={() => router.push('/(tabs)/screens/Module203Screen')}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard5.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -78,7 +78,7 @@ export default function ModulesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/screens/Module204Screen")}>
+          <Pressable onPress={() => router.push('/(tabs)/screens/Module204Screen')}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard6.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
