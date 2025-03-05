@@ -1,172 +1,103 @@
-//import React from "react";
-import React, { useEffect, useState, setState } from 'react';
-import { View, ActivityIndicator, RefreshControl, StyleSheet, Text, SafeAreaView, Button, FlatList, Pressable } from 'react-native';
-//import Constants from 'expo-constants';
+import React, { useEffect, useState } from 'react';
+import { View, ActivityIndicator, StyleSheet, Text, SafeAreaView, FlatList, Pressable, TextInput } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import {
-  Dimensions,
-  Image,
-  //Slider,
-  //SafeAreaView,
-  
-  Alert,
-  TextInput
- 
-  //VirtualizedList
-} from "react-native";
-import { Asset } from "expo-asset";
-import Constants from 'expo-constants';
-import { Audio, Video } from "expo-av";
-import * as Font from "expo-font";
-//import List from "../components/List2";
-import { MaterialIcons } from "@expo/vector-icons";
-//import SearchBar from 'react-native-searchbar';
 import axios from 'axios';
 
+interface PathPot {
+  name: string;
+  urlCode: string;
+  category_id: number;
+}
 
-export default function App() {
-
+export default function PathPotsScreen() {
   const [isLoading, setLoading] = useState(true);
-  const [data, setData] = useState([]);
-  // const selectedCategories = [1, 28, 34, 35, 36, 37, 38, 39, 40, 41 ]; // Array of category IDs to filter
-  // const filteredData = data.filter(item => selectedCategories.includes(item.category_id));
-  const filteredData = data.filter(item => item.category_id === 6);
-  
-  //const categoryIdsToFilter = [6, 40, 50]; // Add all category IDs you want to filter
-  // const filteredData = data.filter(item => categoryIdsToFilter.includes(item.category_id));
-//   const [searchText, setSearchText] = useState('');
+  const [data, setData] = useState<PathPot[]>([]);
+  const [searchText, setSearchText] = useState('');
 
+  const searchFunction = (text: string) => {
+    setSearchText(text);
+  };
 
-//   const searchFunction = (text) => {
-//     setSearchText(text);
-//   }
+  const filteredData = searchText
+    ? data.filter(item => 
+        item.name.toLowerCase().includes(searchText.toLowerCase())
+      )
+    : data;
 
   useEffect(() => {
-  axios.get('https://placements.bsms.ac.uk/api/PathPots')
-  
+    axios.get('https://placements.bsms.ac.uk/api/PathPots')
       .then(({ data }) => {
-        console.log(data);
-        //console.log("defaultApp -> data", data.name)
-        setData(data)
+        console.log("Received data length:", data.length);
+        setData(data);
       })
-      .catch((error) => console.error(error))
+      .catch((error) => {
+        console.error("Error fetching data:", error);
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  
-
   return (
-   
-    <View style={{ flex: 1, padding: 24, backgroundColor: '#000', }}>   
-    <Text style={{ color: '#FFF', fontSize: 20, marginTop: 10, marginBottom:15, textAlign:"center"}}>ANATOMY PATHOLOGY POTS</Text>
-    {/* <View style={styles.searchBarContainer}></View> 
-    <TextInput 
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ flex: 1, padding: 24 }}>   
+        <Text style={styles.title}>
+          ANATOMY PATHOLOGY POTS
+        </Text>
+        
+        <TextInput 
           style={styles.searchBar}
-          placeholderTextColor="black"
+          placeholderTextColor="#000"
           placeholder="Search available pathology pots"
           value={searchText}
-          onChangeText={text => searchFunction(text)}
-        />*/}
-      {isLoading ? <ActivityIndicator /> : (
-        <FlatList 
-          data={data}
-          renderItem={({ item }) =>  {
-            console.log("item", item)
-            return ( 
-            
-                <Pressable onPress = {() => WebBrowser.openBrowserAsync(item.urlCode)}>
-               
-               <Text style={{ flex: 1,  
-              color:'#bcba40',
-              backgroundColor: '#000',
-                borderColor: '#bcba40',
-                borderStyle:'dotted',
-                borderRadius: 8,
-                borderWidth: 1,
-                padding: 8,
-                marginVertical: 5,
-                marginHorizontal: 8,
-                marginBottom: 5
-                }}>{item.name}
-                </Text>
-                
-              {/* <a href='https://placements.bsms.ac.uk/storage/{$urlCode}'>{urlCode}</a> */}
-              </Pressable> 
-           
-            )
-          }}
-          
+          onChangeText={searchFunction}
         />
-      )}
-    </View>
-   
+
+        {isLoading ? (
+          <ActivityIndicator size="large" color="#FAD607" /> 
+        ) : (
+          <FlatList 
+            data={filteredData}
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={({ item }) => (
+              <Pressable onPress={() => WebBrowser.openBrowserAsync(item.urlCode)}>
+                <Text style={styles.itemText}>
+                  {item.name}
+                </Text>
+              </Pressable> 
+            )}
+            ListEmptyComponent={() => (
+              <Text style={{ color: '#FFF', textAlign: 'center' }}>No items found</Text>
+            )}
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
-
- 
-
-
-//styles
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    //marginTop: Constants.statusBarHeight,
-    backgroundColor: '#000',
-  },
-
-item: {
-  backgroundColor: '#FAD607',
-  borderRadius: 20,
-  padding: 8,
-  marginVertical: 5,
-  marginHorizontal: 8,
-  marginBottom: 15,
-},
-Logo: {
-  height: 80,
-  alignItems: 'center',
-},
-name: {
-  fontFamily: 'Verdana',
-  fontSize: 20,
-  //fontWeight: "bold",
-  color: "#000",
-
-},
-button: {
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 12,
-  paddingHorizontal: 32,
-  borderRadius: 20,
-  elevation: 3,
-  backgroundColor: 'black',
-},
-// searchBarContainer: {
-//   flex: 1.5,
-//   backgroundColor: '#ffffff',
-//   alignItems: 'center',
-//   justifyContent: 'center',
-// },
-// searchBar: {
-//   // width: wp(80),
-//   // height: hp(6),
-//   borderWidth: wp(0.2),
-//   borderRadius: wp(3),
-//   borderColor: '#999999',
-//   backgroundColor: '#ffffff',
-//   marginTop: wp(7),
-//   paddingLeft: wp(4.5),
-//   fontSize: wp(4),
-//   color: 'black'
-// },
-});
-
 }
 
-
-
-
-
-
-
-
+const styles = StyleSheet.create({
+  title: {
+    color: '#FFF',
+    fontSize: 20,
+    marginTop: 10,
+    marginBottom: 15,
+    textAlign: "center"
+  },
+  searchBar: {
+    backgroundColor: '#FAD607',
+    padding: 12,
+    borderRadius: 20,
+    marginBottom: 16,
+    fontSize: 16,
+    color: '#000',
+  },
+  itemText: {
+    backgroundColor: '#FAD607',
+    borderRadius: 20,
+    padding: 8,
+    marginVertical: 5,
+    marginHorizontal: 8,
+    marginBottom: 15,
+    color: '#000',
+    fontSize: 20,
+  }
+});
