@@ -52,7 +52,7 @@ export default function PathPotsScreen() {
         />
 
         {isLoading ? (
-          <ActivityIndicator size="large" color="#FAD607" /> 
+          <ActivityIndicator size="large" color="#bcba40" /> 
         ) : (
           <FlatList 
             data={filteredData}
@@ -91,13 +91,16 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   itemText: {
-    backgroundColor: '#FAD607',
-    borderRadius: 20,
+    flex: 1,
+    color: '#bcba40',
+    backgroundColor: '#000',
+    borderColor: '#bcba40',
+    borderStyle: 'dotted',
+    borderRadius: 8,
+    borderWidth: 1,
     padding: 8,
     marginVertical: 5,
     marginHorizontal: 8,
-    marginBottom: 15,
-    color: '#000',
-    fontSize: 20,
+    marginBottom: 5,
   }
 });
