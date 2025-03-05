@@ -1,9 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Image, Pressable, ViewStyle, TextStyle, ImageStyle, useWindowDimensions } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
-import { HealthProfScreen } from '@/components/screens/HealthProfScreen';
-import { PubDisScreen } from '@/components/screens/PubDisScreen';
 
 export default function CoursesScreen() {
   const { width, height } = useWindowDimensions();
@@ -29,7 +26,7 @@ export default function CoursesScreen() {
       {/* First Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/screens/PAScreen")}>
+          <Pressable onPress={() => router.push("/(courses)/PAScreen")}>
             <Image 
               source={require('@/assets/images/interfaceIcons_Artboard7.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -39,7 +36,7 @@ export default function CoursesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push('/screens/MedNeuroScreen')}>
+          <Pressable onPress={() => router.push('/(courses)/MedNeuroScreen')}>
             <Image 
               source={require('@/assets/images/interfaceIcons_Artboard30.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -49,7 +46,7 @@ export default function CoursesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push('/screens/BioMedScreen')}>
+          <Pressable onPress={() => router.push('/(courses)/BioMedScreen')}>
             <Image 
               source={require('@/assets/images/interfaceIcons_Artboard31.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -62,7 +59,7 @@ export default function CoursesScreen() {
       {/* Second Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push('/screens/PostGradScreen')}>
+          <Pressable onPress={() => router.push('/(courses)/PostGradScreen')}>
             <Image 
               source={require('@/assets/images/interfaceIcons_Artboard32.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -72,7 +69,7 @@ export default function CoursesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => <HealthProfScreen />}>
+          <Pressable onPress={() => router.push('/(courses)/HealthProfScreen')}>
             <Image 
               source={require('@/assets/images/interfaceIcons_Artboard22.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -82,7 +79,7 @@ export default function CoursesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => <PubDisScreen />}>
+          <Pressable onPress={() => router.push('/(courses)/PubDisScreen')}>
             <Image 
               source={require('@/assets/images/interfaceIcons_Artboard24.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 

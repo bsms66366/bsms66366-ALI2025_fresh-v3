@@ -37,7 +37,7 @@ export default function ResourcesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/screens/SessionNotesScreen")}>
+          <Pressable onPress={() => router.push("/(resources)/SessionNotesScreen")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard27.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -47,7 +47,7 @@ export default function ResourcesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/screens/SearchScreen")}>
+          <Pressable onPress={() => router.push("/(resources)/PathPotsScreen")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard9.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
