@@ -1,7 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { Platform, StyleSheet, Pressable } from 'react-native';
 
-import EditScreenInfo from '@/components/EditScreenInfo';
 import { Text, View, useThemeColor } from '@/components/Themed';
 import { useTheme } from '@/components/useTheme';
 
@@ -36,10 +35,6 @@ export default function ModalScreen() {
   
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      <Text style={[styles.title, { color: textColor }]}>
-        Modal
-      </Text>
-      
       <Pressable
         style={[styles.themeButton, { backgroundColor: buttonBg }]}
         onPress={cycleTheme}
@@ -48,14 +43,6 @@ export default function ModalScreen() {
           {getThemeIcon()} {getThemeText()}
         </Text>
       </Pressable>
-
-      <View 
-        style={styles.separator} 
-        lightColor="#eee" 
-        darkColor="rgba(255,255,255,0.1)" 
-      />
-      
-      <EditScreenInfo path="app/modal.tsx" />
 
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </View>
@@ -67,16 +54,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: '80%',
   },
   themeButton: {
     padding: 12,
