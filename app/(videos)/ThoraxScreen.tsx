@@ -1,152 +1,113 @@
-//import React from "react";
-import React, { useEffect, useState, setState } from 'react';
-import { View, ActivityIndicator, RefreshControl, StyleSheet, Text, SafeAreaView, Button, FlatList, Pressable } from 'react-native';
-//import Constants from 'expo-constants';
+import React, { useEffect, useState } from 'react';
+import { View, ActivityIndicator, StyleSheet, Text, FlatList, Pressable, Image } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import {
-  Dimensions,
-  Image,
-  //Slider,
-  //SafeAreaView,
-  
-  Alert,
-  TextInput
- 
-  //VirtualizedList
-} from "react-native";
-import { Asset } from "expo-asset";
-import Constants from 'expo-constants';
-import { Audio, Video } from "expo-av";
-import * as Font from "expo-font";
-//import List from "../components/List2";
-import { MaterialIcons } from "@expo/vector-icons";
-//import SearchBar from 'react-native-searchbar';
 import axios from 'axios';
 
+// Define the type for our video data
+interface VideoItem {
+  id: number;
+  name: string;
+  video: string;
+  category_id: number;
+}
 
-export default function App() {
-
+export default function ThoraxScreen() {
   const [isLoading, setLoading] = useState(true);
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<VideoItem[]>([]);
   const filteredData = data.filter(item => item.category_id === 22);
 
   useEffect(() => {
-  axios.get('https://placements.bsms.ac.uk/api/Dissection')
-    //axios.get('http://192.168.1.20:8000/api/Video')
-    //axios.get('http://127.0.0.1:8000/api/placements')
+    axios.get('https://placements.bsms.ac.uk/api/Dissection')
       .then(({ data }) => {
-        console.log(data);
-        //console.log("defaultApp -> data", data.name)
+        console.log('API Response:', data);
         setData(data)
       })
-      .catch((error) => console.error(error))
+      .catch((error) => {
+        console.error('API Error:', error);
+        setLoading(false);
+      })
       .finally(() => setLoading(false));
   }, []);
 
+  const keyExtractor = (item: VideoItem) => item.id.toString();
   
-
-  return (
-   
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 15, backgroundColor: '#000', }}>
-    <Image source={require('../../assets/images/interfaceIcons_Artboard2.png')}style={{ width: 250, height: 250, justifyContent: 'center',}} />
-    <Text style={{ color: '#FFF', fontSize: 20, marginTop: 10, marginBottom:15, textAlign:"center"}}>THORAX DISSECTION VIDEOS</Text>
-      {isLoading ? <ActivityIndicator /> : (
-        <FlatList 
-          data={filteredData}
-          renderItem={({ item }) =>  {
-            console.log("item", item)
-            return ( 
-            
-                <Pressable onPress = {() => WebBrowser.openBrowserAsync(item.video)}>
-               
-               <Text style={{ flex: 1,  
-              color:'#bcba40',
-              backgroundColor: '#000',
-                borderColor: '#bcba40',
-                borderStyle:'dotted',
-                borderRadius: 8,
-                borderWidth: 1,
-                padding: 8,
-                marginVertical: 5,
-                marginHorizontal: 8,
-                marginBottom: 5
-                }}>{item.name}
-                </Text>
-              
-              </Pressable> 
-           
-            )
-          }}
-          
-        />
-      )}
-    </View>
-   
+  const renderEmptyList = () => (
+    <Text style={styles.emptyText}>No videos available</Text>
   );
 
- 
+  const renderItem = ({ item }: { item: VideoItem }) => (
+    <Pressable onPress={() => WebBrowser.openBrowserAsync(item.video)}>
+      <Text style={styles.listItem}>{item.name}</Text>
+    </Pressable> 
+  );
 
+  return (
+    <View style={styles.container}>
+      <Image 
+        source={require('../../assets/images/interfaceIcons_Artboard2.png')}
+        style={styles.headerImage} 
+      />
 
-//styles
+      <Text style={styles.headerText}>
+        THORAX DISSECTION VIDEOS
+      </Text>
+      
+      {isLoading ? (
+        <ActivityIndicator size="large" color="#bcba40" />
+      ) : (
+        <FlatList 
+          data={filteredData}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          ListEmptyComponent={renderEmptyList}
+          contentContainerStyle={styles.listContainer}
+          style={styles.list}
+        />
+      )}
+    </View> 
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    //marginTop: Constants.statusBarHeight,
     backgroundColor: '#000',
+    padding: 15,
+    alignItems: 'center',
   },
-
-item: {
-  backgroundColor: '#FAD607',
-  borderRadius: 20,
-  padding: 8,
-  marginVertical: 5,
-  marginHorizontal: 8,
-  marginBottom: 15,
-},
-Logo: {
-  height: 80,
-  alignItems: 'center',
-},
-name: {
-  fontFamily: 'Verdana',
-  fontSize: 20,
-  //fontWeight: "bold",
-  color: "#000",
-
-},
-button: {
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 12,
-  paddingHorizontal: 32,
-  borderRadius: 20,
-  elevation: 3,
-  backgroundColor: 'black',
-},
-/*   listcontainer: {
-  flexDirection: 'row',
-  backgroundColor: '#bcba40',
-  //borderColor: '#FAD607',
-  //paddingTop: 5,
-  borderRadius: 20,
-  padding: 15,
-  marginVertical: 5,
-  marginHorizontal: 8,
-  marginBottom: 15,
-  alignItems: 'center', 
-  fontWeight: 'bold',
-  fontFamily: 'Verdana',
-  //fontFamily: 'Roboto-Regular',
-  fontSize: 20, 
- }, */
+  headerImage: {
+    width: 250,
+    height: 250,
+    resizeMode: 'contain',
+  },
+  headerText: {
+    color: '#FFF',
+    fontSize: 20,
+    marginTop: 10,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  list: {
+    width: '100%',
+  },
+  listContainer: {
+    flexGrow: 1,
+    width: '100%',
+  },
+  listItem: {
+    color: '#bcba40',
+    backgroundColor: '#000',
+    borderColor: '#bcba40',
+    borderStyle: 'dotted',
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 8,
+    marginVertical: 5,
+    width: '100%',
+  },
+  emptyText: {
+    color: '#bcba40',
+    textAlign: 'center',
+    marginTop: 20,
+  }
 });
-
-}
-
-
-
-
-
-
-
-

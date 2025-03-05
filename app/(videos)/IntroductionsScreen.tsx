@@ -3,31 +3,39 @@ import { View, ActivityIndicator, StyleSheet, Text, FlatList, Pressable, Image }
 import * as WebBrowser from 'expo-web-browser';
 import axios from 'axios';
 
+// Define the type for our video data
+interface VideoItem {
+  id: number;
+  name: string;
+  video: string;
+  category_id: number;
+}
+
 export default function Page() {
   const [isLoading, setLoading] = useState(true);
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<VideoItem[]>([]);
   const filteredData = data.filter(item => item.category_id === 30);
 
   useEffect(() => {
     axios.get('https://placements.bsms.ac.uk/api/Dissection')
       .then(({ data }) => {
-        console.log('API Response:', data); 
+        console.log('API Response:', data);
         setData(data)
       })
       .catch((error) => {
-        console.error('API Error:', error); 
+        console.error('API Error:', error);
         setLoading(false);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  const keyExtractor = (item: any) => item.id?.toString() || Math.random().toString();
+  const keyExtractor = (item: VideoItem) => item.id.toString();
   
   const renderEmptyList = () => (
     <Text style={styles.emptyText}>No videos available</Text>
   );
 
-  const renderItem = ({ item }: { item: any }) => (
+  const renderItem = ({ item }: { item: VideoItem }) => (
     <Pressable onPress={() => WebBrowser.openBrowserAsync(item.video)}>
       <Text style={styles.listItem}>{item.name}</Text>
     </Pressable> 
