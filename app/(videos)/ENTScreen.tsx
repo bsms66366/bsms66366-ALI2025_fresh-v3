@@ -14,7 +14,7 @@ interface VideoItem {
 export default function Page() {
   const [isLoading, setLoading] = useState(true);
   const [data, setData] = useState<VideoItem[]>([]);
-  const filteredData = data.filter(item => item.category_id === 17);
+  const filteredData = data.filter(item => item.category_id === 21);
 
   useEffect(() => {
     axios.get('https://placements.bsms.ac.uk/api/Dissection')

@@ -1,5 +1,5 @@
 //import React from "react";
-import React, { useEffect, useState, setState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, RefreshControl, StyleSheet, Text, SafeAreaView, Button, FlatList, Pressable } from 'react-native';
 //import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
@@ -23,11 +23,16 @@ import { MaterialIcons } from "@expo/vector-icons";
 //import SearchBar from 'react-native-searchbar';
 import axios from 'axios';
 
+interface DissectionVideo {
+  category_id: number;
+  name: string;
+  video: string;
+}
 
 export default function App() {
 
   const [isLoading, setLoading] = useState(true);
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<DissectionVideo[]>([]);
   const filteredData = data.filter(item => item.category_id === 25);
 
   useEffect(() => {
@@ -142,11 +147,3 @@ button: {
 });
 
 }
-
-
-
-
-
-
-
-

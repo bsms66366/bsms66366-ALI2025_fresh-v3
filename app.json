@@ -2,7 +2,7 @@
   "expo": {
     "name": "ALI2025",
     "slug": "ALI2025",
-    "version": "1.0.0",
+    "version": "1.21.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
@@ -14,7 +14,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cjtaylormade.ali2320",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,6 +36,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "eb315645-7e25-4941-9ce8-1fa61d047b65"
+      }
     }
   }
 }
