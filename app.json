@@ -5,7 +5,7 @@
     "version": "1.21.0",
     "orientation": "portrait",
     "icon": "./assets/images/appstore.png",
-    "scheme": "ALI2025",
+    "scheme": "ali2025",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
