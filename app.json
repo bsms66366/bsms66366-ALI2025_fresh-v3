@@ -2,11 +2,11 @@
   "expo": {
     "name": "ALI2025",
     "slug": "ALI2025",
-    "version": "1.21.0",
+    "version": "1.21.01",
     "orientation": "portrait",
     "icon": "./assets/images/appstore.png",
     "scheme": "ali2025",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
