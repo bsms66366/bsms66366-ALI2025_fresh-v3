@@ -4,7 +4,7 @@ import { Text } from '../../components/Themed';
 
 export default function TabHomeScreen() {
   return (
-    <View style={styles.container}>
+    <View style={styles.container} darkColor="#000000" lightColor="#000000">
       
       <Image source={require('../../assets/images/Logo9.png')} style={styles.IconStyle} />
       <Text style={styles.subtitleText}>Welcome to the BSMS Anatomy Learning Interface</Text>
