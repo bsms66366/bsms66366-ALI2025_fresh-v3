@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Platform } from 'react-native';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import { Asset } from 'expo-asset';
@@ -21,21 +21,41 @@ export default function ARScreen() {
 
   const loadModel = async (modelPath: string) => {
     if (isURL(modelPath)) {
-      // Handle remote URL
       try {
         const response = await axios.get(modelPath, {
-          responseType: 'arraybuffer'
+          responseType: 'arraybuffer',
+          headers: {
+            'Accept': 'application/octet-stream'
+          }
         });
-        const blob = new Blob([response.data], { type: 'application/octet-stream' });
+        const blob = new Blob([response.data], { type: 'model/gltf-binary' });
         return URL.createObjectURL(blob);
       } catch (error) {
         console.error('Error fetching remote model:', error);
         throw error;
       }
     } else {
-      // Handle local file
-      const resolved = await resolveAsync(modelPath);
-      return resolved?.localUri || resolved?.uri;
+      try {
+        // Load local asset
+        const asset = Asset.fromModule(require('../../assets/models/larynx.glb'));
+        await asset.downloadAsync();
+        
+        if (!asset.localUri) {
+          throw new Error('Failed to load local asset');
+        }
+        
+        // Handle file protocol for iOS
+        let uri = asset.localUri;
+        if (Platform.OS === 'ios' && !uri.startsWith('file://')) {
+          uri = `file://${uri}`;
+        }
+        
+        console.log('Local asset URI:', uri);
+        return uri;
+      } catch (error) {
+        console.error('Error loading local asset:', error);
+        throw error;
+      }
     }
   };
 
@@ -48,43 +68,28 @@ export default function ARScreen() {
     const renderer = new Renderer({ gl });
     renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
 
-    // Load 3D model
-
-    
     try {
-      // Can be either a local path or a remote URL
-      const modelPath = '../../assets/models/larynx.glb';
-      // const modelPath = 'https://your-api.com/models/larynx.glb';
-      
-      const modelURI = await loadModel(modelPath);
+      const modelURI = await loadModel('../../assets/models/larynx.glb');
       
       if (!modelURI) {
         throw new Error('Could not resolve model URI');
       }
 
-      console.log('Model URI:', modelURI); // Debug log
-
       const loader = new GLTFLoader();
-      loader.setPath('');
-
-      // Configure THREE.FileLoader for Expo environment
-      const fileLoader = new THREE.FileLoader();
-      fileLoader.setResponseType('arraybuffer');
+      
+      // Set cross-origin policy
+      loader.setCrossOrigin('anonymous');
+      
+      // Use arraybuffer manager
+      const manager = new THREE.LoadingManager();
+      loader.manager = manager;
 
       const model = await new Promise<GLTF>((resolve, reject) => {
         loader.load(
           modelURI,
-          (gltf) => {
-            console.log('Model loaded successfully');
-            resolve(gltf);
-          },
-          (progress) => {
-            console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
-          },
-          (error) => {
-            console.error('GLTFLoader error:', error);
-            reject(error);
-          }
+          resolve,
+          (progress) => console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%'),
+          reject
         );
       });
 
