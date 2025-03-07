@@ -37,16 +37,6 @@ export default function ResourcesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/(resources)/SessionNotesScreen")}>
-            <Image 
-              source={require('../../assets/images/interfaceIcons_Artboard27.png')} 
-              style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
-            />
-            <Text style={styles.titleText}>UG Session Notes</Text>
-          </Pressable>
-        </View>
-  
-        <View style={[boxBorderStyle]}>
           <Pressable onPress={() => router.push("/(resources)/PathPotsScreen")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard9.png')} 
@@ -55,17 +45,27 @@ export default function ResourcesScreen() {
             <Text style={styles.titleText}>Pathology Pots</Text>
           </Pressable>
         </View>
-      </View>
-
-      {/* Second Row */}
-      <View style={styles.row}>
+  
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => WebBrowser.openBrowserAsync('https://www.clinicalkey.com/#!/browse/book/3-s2.0-C20150000041')}>
+          <Pressable onPress={() => router.push("/(resources)/PathPotsScreen")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard29.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
             />
             <Text style={styles.titleText}>Clinical Key</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Second Row */}
+      <View style={styles.row}>
+        <View style={[boxBorderStyle]}>
+          <Pressable onPress={() => WebBrowser.openBrowserAsync('https://www.spatial.io/s/BSMS-Anatomy-Department-Metaverse-66e82a713f0957ff8c7ee24b')}>
+            <Image 
+              source={require('../../assets/images/interfaceIcons_Artboard39.png')} 
+              style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
+            />
+            <Text style={styles.titleText}>Anatomy Metaverse</Text>
           </Pressable>
         </View>
   
