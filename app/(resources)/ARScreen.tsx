@@ -4,58 +4,49 @@ import { Renderer } from 'expo-three';
 import { Asset } from 'expo-asset';
 import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as THREE from 'three';
-import { resolveAsync } from 'expo-asset-utils';
-import axios from 'axios';
+
+// Define the model path relative to (resources)
+const MODEL_PATH = '../../assets/models/larynx.glb';
+
+// Create an asset reference
+const MODEL = Asset.fromModule(require(MODEL_PATH));
+console.log('Created asset reference:', MODEL);
 
 export default function ARScreen() {
   let timeout: number;
 
-  const isURL = (str: string) => {
+  const loadModel = async () => {
     try {
-      new URL(str);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const loadModel = async (modelPath: string) => {
-    if (isURL(modelPath)) {
-      try {
-        const response = await axios.get(modelPath, {
-          responseType: 'arraybuffer',
-          headers: {
-            'Accept': 'application/octet-stream'
-          }
-        });
-        const blob = new Blob([response.data], { type: 'model/gltf-binary' });
-        return URL.createObjectURL(blob);
-      } catch (error) {
-        console.error('Error fetching remote model:', error);
-        throw error;
+      console.log('Starting model load...');
+      
+      // Ensure the model is downloaded
+      if (!MODEL.downloaded) {
+        console.log('Downloading model...');
+        await MODEL.downloadAsync();
+        console.log('Model downloaded successfully');
       }
-    } else {
-      try {
-        // Load local asset
-        const asset = Asset.fromModule(require('../../assets/models/larynx.glb'));
-        await asset.downloadAsync();
-        
-        if (!asset.localUri) {
-          throw new Error('Failed to load local asset');
-        }
-        
-        // Handle file protocol for iOS
-        let uri = asset.localUri;
-        if (Platform.OS === 'ios' && !uri.startsWith('file://')) {
-          uri = `file://${uri}`;
-        }
-        
-        console.log('Local asset URI:', uri);
-        return uri;
-      } catch (error) {
-        console.error('Error loading local asset:', error);
-        throw error;
+      
+      if (!MODEL.localUri) {
+        console.error('Model state:', MODEL);
+        throw new Error('Model localUri is undefined after download');
       }
+      
+      // Handle iOS file protocol
+      const uri = Platform.OS === 'ios' 
+        ? MODEL.localUri.startsWith('file://') 
+          ? MODEL.localUri 
+          : `file://${MODEL.localUri}`
+        : MODEL.localUri;
+      
+      console.log('Model URI:', uri);
+      return uri;
+    } catch (error) {
+      console.error('Error in loadModel:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      throw error;
     }
   };
 
@@ -69,11 +60,15 @@ export default function ARScreen() {
     renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
 
     try {
-      const modelURI = await loadModel('../../assets/models/larynx.glb');
+      // Use same path as in loadModel function
+      console.log('Starting model loading in context...');
+      const modelURI = await loadModel();
+      console.log('Model URI received:', modelURI);
       
       if (!modelURI) {
         throw new Error('Could not resolve model URI');
       }
+      console.log('Model URI validated');
 
       const loader = new GLTFLoader();
       
