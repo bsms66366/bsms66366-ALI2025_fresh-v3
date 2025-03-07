@@ -60,12 +60,12 @@ export default function ResourcesScreen() {
       {/* Second Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => WebBrowser.openBrowserAsync('https://www.spatial.io/s/BSMS-Anatomy-Department-Metaverse-66e82a713f0957ff8c7ee24b')}>
+          <Pressable onPress={() => router.push("/(resources)/ARScreen")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard39.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
             />
-            <Text style={styles.titleText}>Anatomy Metaverse</Text>
+            <Text style={styles.titleText}>AR Models</Text>
           </Pressable>
         </View>
   
