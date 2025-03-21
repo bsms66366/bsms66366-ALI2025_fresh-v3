@@ -37,7 +37,7 @@ export default function ResourcesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/(resources)/PathPotsScreen")}>
+          <Pressable onPress={() => router.push("/(resources)/PathPotsScreen" as any)}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard9.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -47,7 +47,7 @@ export default function ResourcesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/(resources)/PathPotsScreen")}>
+          <Pressable onPress={() => router.push("/(resources)/PathPotsScreen" as any)}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard29.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
@@ -60,7 +60,7 @@ export default function ResourcesScreen() {
       {/* Second Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/(resources)/ARScreen")}>
+          <Pressable onPress={() => router.push("/viro-ar")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard39.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
