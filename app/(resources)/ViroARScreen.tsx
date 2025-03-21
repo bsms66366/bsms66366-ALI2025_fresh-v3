@@ -99,17 +99,17 @@ const ARScene = () => {
 
   return (
     <ViroARScene>
-      {/* Ambient light for overall scene illumination - increased intensity */}
-      <ViroAmbientLight color="#ffffff" intensity={1.5} />
+      {/* Ambient light for overall scene illumination - extremely high intensity */}
+      <ViroAmbientLight color="#ffffff" intensity={12.0} />
       
-      {/* Directional light for better shadows and depth - increased intensity */}
+      {/* Directional light for better shadows and depth - extremely high intensity */}
       <ViroDirectionalLight
         color="#ffffff"
         direction={[0, -1, -0.2]}
-        intensity={2.0}
+        intensity={15.0}
       />
       
-      {/* Spot light for better depth perception - increased intensity and adjusted position */}
+      {/* Main spot light from above - extremely bright */}
       <ViroSpotLight
         innerAngle={20}
         outerAngle={60}
@@ -117,11 +117,11 @@ const ARScene = () => {
         position={[0, 5, 0]}
         color="#ffffff"
         castsShadow={true}
-        intensity={2.5}
-        shadowOpacity={0.7}
+        intensity={18.0}
+        shadowOpacity={0.3}
       />
       
-      {/* Secondary light from another angle - increased intensity */}
+      {/* Secondary light from below - extremely bright */}
       <ViroSpotLight
         innerAngle={20}
         outerAngle={60}
@@ -129,10 +129,10 @@ const ARScene = () => {
         position={[0, -5, 0]}
         color="#ffffff"
         castsShadow={false}
-        intensity={1.8}
+        intensity={15.0}
       />
       
-      {/* Additional front light for better visibility */}
+      {/* Front light for better visibility - extremely bright */}
       <ViroSpotLight
         innerAngle={30}
         outerAngle={70}
@@ -140,7 +140,110 @@ const ARScene = () => {
         position={[0, 0, 5]}
         color="#ffffff"
         castsShadow={false}
-        intensity={2.0}
+        intensity={30.0}
+      />
+      
+      {/* Additional front lights from slightly different angles */}
+      <ViroSpotLight
+        innerAngle={30}
+        outerAngle={70}
+        direction={[0.2, 0.2, -1]}
+        position={[-1, -1, 4.5]}
+        color="#ffffff"
+        castsShadow={false}
+        intensity={19.0}
+      />
+      
+      <ViroSpotLight
+        innerAngle={30}
+        outerAngle={70}
+        direction={[-0.2, 0.2, -1]}
+        position={[1, -1, 4.5]}
+        color="#ffffff"
+        castsShadow={false}
+        intensity={19.0}
+      />
+      
+      <ViroSpotLight
+        innerAngle={30}
+        outerAngle={70}
+        direction={[0.2, -0.2, -1]}
+        position={[-1, 1, 4.5]}
+        color="#ffffff"
+        castsShadow={false}
+        intensity={19.0}
+      />
+      
+      <ViroSpotLight
+        innerAngle={30}
+        outerAngle={70}
+        direction={[-0.2, -0.2, -1]}
+        position={[1, 1, 4.5]}
+        color="#ffffff"
+        castsShadow={false}
+        intensity={19.0}
+      />
+      
+      {/* Side lights for better coverage - extremely bright */}
+      <ViroSpotLight
+        innerAngle={30}
+        outerAngle={70}
+        direction={[1, 0, 0]}
+        position={[-5, 0, 0]}
+        color="#ffffff"
+        castsShadow={false}
+        intensity={15.0}
+      />
+      
+      <ViroSpotLight
+        innerAngle={30}
+        outerAngle={70}
+        direction={[-1, 0, 0]}
+        position={[5, 0, 0]}
+        color="#ffffff"
+        castsShadow={false}
+        intensity={15.0}
+      />
+      
+      {/* Additional diagonal lights for complete coverage */}
+      <ViroSpotLight
+        innerAngle={30}
+        outerAngle={70}
+        direction={[1, 1, -1]}
+        position={[-3, -3, 3]}
+        color="#ffffff"
+        castsShadow={false}
+        intensity={14.0}
+      />
+      
+      <ViroSpotLight
+        innerAngle={30}
+        outerAngle={70}
+        direction={[-1, 1, -1]}
+        position={[3, -3, 3]}
+        color="#ffffff"
+        castsShadow={false}
+        intensity={14.0}
+      />
+      
+      <ViroSpotLight
+        innerAngle={30}
+        outerAngle={70}
+        direction={[1, -1, -1]}
+        position={[-3, 3, 3]}
+        color="#ffffff"
+        castsShadow={false}
+        intensity={14.0}
+      />
+      
+      <ViroSpotLight
+        innerAngle={30}
+        outerAngle={70}
+        direction={[-1, -1, -1]}
+        position={[3, 3, 3]}
+        color="#ffffff"
+        castsShadow={false}
+        intensity={14.0}
       />
       
       {/* 3D Model Node with animation */}
