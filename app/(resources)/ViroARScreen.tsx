@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import {
   ViroARScene,
@@ -17,16 +17,21 @@ import { router } from 'expo-router';
 // Define the model paths
 const LARYNX_MODEL = require('@/assets/models/larynx_with_muscles_and_ligaments.glb');
 
+// Create a context for sharing animation state
+const AnimationContext = createContext({
+  isAnimating: true,
+  setIsAnimating: (value: boolean) => {}
+});
+
 // The AR Scene component
 const ARScene = () => {
+  const { isAnimating } = useContext(AnimationContext);
   const [modelRotation, setModelRotation] = useState<[number, number, number]>([0, 0, 0]);
   const [modelScale] = useState<[number, number, number]>([0.05, 0.05, 0.05]); // Increased scale slightly since we moved it further away
   const materialsInitialized = useRef(false);
   const modelRef = useRef<any>(null);
-  const [isAnimating, setIsAnimating] = useState(true);
   const animationRef = useRef<number | null>(null);
   const lastUpdateTimeRef = useRef<number>(Date.now());
-  const rotationValueRef = useRef<number>(0);
   
   // Anatomical colors and labels mapping
   const anatomicalParts = [
@@ -130,6 +135,12 @@ const ARScene = () => {
       console.log("Starting manual rotation animation");
       lastUpdateTimeRef.current = Date.now();
       animationRef.current = requestAnimationFrame(animateModel);
+    } else {
+      // If animation is disabled and we have an active animation frame, cancel it
+      if (animationRef.current !== null) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
     }
     
     // Cleanup function to cancel animation when component unmounts
@@ -140,11 +151,6 @@ const ARScene = () => {
       }
     };
   }, [isAnimating]);
-  
-  // Toggle animation function
-  const toggleAnimation = () => {
-    setIsAnimating(prev => !prev);
-  };
   
   // Handle object loaded event
   const onObjectLoaded = () => {
@@ -380,64 +386,66 @@ const ViroARScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
-      <ViroARSceneNavigator
-        initialScene={{
-          scene: ARScene,
-        }}
-        style={styles.arView}
-        autofocus={true}
-      />
-      
-      {/* AR not supported message */}
-      {!arSupported && (
-        <View style={styles.arNotSupportedContainer}>
-          <Text style={styles.arNotSupportedText}>
-            AR is not supported on this device.
-          </Text>
+    <AnimationContext.Provider value={{ isAnimating, setIsAnimating }}>
+      <View style={styles.container}>
+        <ViroARSceneNavigator
+          initialScene={{
+            scene: ARScene,
+          }}
+          style={styles.arView}
+          autofocus={true}
+        />
+        
+        {/* AR not supported message */}
+        {!arSupported && (
+          <View style={styles.arNotSupportedContainer}>
+            <Text style={styles.arNotSupportedText}>
+              AR is not supported on this device.
+            </Text>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.buttonText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {/* Instructions overlay */}
+        {showInstructions && (
+          <View style={styles.instructionsContainer}>
+            <Text style={styles.instructionsText}>
+              Move your device around to detect surfaces.{'\n'}
+              Tap on a surface to place the 3D model.
+            </Text>
+          </View>
+        )}
+        
+        {/* Controls */}
+        <View style={styles.controlsContainer}>
           <TouchableOpacity 
-            style={styles.backButton}
+            style={styles.controlButton}
+            onPress={() => setShowLabels(!showLabels)}
+          >
+            <Text style={styles.buttonText}>{showLabels ? 'Hide Labels' : 'Show Labels'}</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.controlButton}
+            onPress={() => setIsAnimating(!isAnimating)}
+          >
+            <Text style={styles.buttonText}>{isAnimating ? 'Pause Rotation' : 'Resume Rotation'}</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.controlButton}
             onPress={() => router.back()}
           >
-            <Text style={styles.buttonText}>Go Back</Text>
+            <Text style={styles.buttonText}>Exit AR</Text>
           </TouchableOpacity>
         </View>
-      )}
-      
-      {/* Instructions overlay */}
-      {showInstructions && (
-        <View style={styles.instructionsContainer}>
-          <Text style={styles.instructionsText}>
-            Move your device around to detect surfaces.{'\n'}
-            Tap on a surface to place the 3D model.
-          </Text>
-        </View>
-      )}
-      
-      {/* Controls */}
-      <View style={styles.controlsContainer}>
-        <TouchableOpacity 
-          style={styles.controlButton}
-          onPress={() => setShowLabels(!showLabels)}
-        >
-          <Text style={styles.buttonText}>{showLabels ? 'Hide Labels' : 'Show Labels'}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.controlButton}
-          onPress={() => setIsAnimating(!isAnimating)}
-        >
-          <Text style={styles.buttonText}>{isAnimating ? 'Pause Rotation' : 'Resume Rotation'}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.controlButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.buttonText}>Exit AR</Text>
-        </TouchableOpacity>
       </View>
-    </View>
+    </AnimationContext.Provider>
   );
 };
 
