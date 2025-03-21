@@ -377,7 +377,7 @@ const ViroARScreen = () => {
         </Text>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => router.push("/(tabs)")}
         >
           <Text style={styles.buttonText}>Go Back</Text>
         </TouchableOpacity>
@@ -404,7 +404,7 @@ const ViroARScreen = () => {
             </Text>
             <TouchableOpacity 
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => router.push("/(tabs)")}
             >
               <Text style={styles.buttonText}>Go Back</Text>
             </TouchableOpacity>
@@ -439,7 +439,7 @@ const ViroARScreen = () => {
           
           <TouchableOpacity 
             style={styles.controlButton}
-            onPress={() => router.back()}
+            onPress={() => router.push("/(tabs)")}
           >
             <Text style={styles.buttonText}>Exit AR</Text>
           </TouchableOpacity>
@@ -517,6 +517,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#bcba40',
     paddingHorizontal: 15,
     paddingVertical: 12,
+    borderColor: '#101010',
+    borderStyle: 'solid',
     borderRadius: 8,
     minWidth: width * 0.3,
     alignItems: 'center',
@@ -525,6 +527,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#bcba40',
     paddingHorizontal: 20,
     paddingVertical: 12,
+    borderColor: '#101010',
+    borderStyle: 'solid',
     borderRadius: 8,
     minWidth: width * 0.4,
     alignItems: 'center',
