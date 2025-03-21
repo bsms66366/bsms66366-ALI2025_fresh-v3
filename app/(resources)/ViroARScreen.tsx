@@ -274,7 +274,7 @@ const ARScene = () => {
         position={[-5, 0, 0]}
         color="#ffffff"
         castsShadow={false}
-        intensity={15.0}
+        intensity={20.0}
       />
       
       <ViroSpotLight
@@ -295,7 +295,7 @@ const ARScene = () => {
         position={[-3, -3, 3]}
         color="#ffffff"
         castsShadow={false}
-        intensity={14.0}
+        intensity={20.0}
       />
       
       <ViroSpotLight
@@ -423,12 +423,12 @@ const ViroARScreen = () => {
         
         {/* Controls */}
         <View style={styles.controlsContainer}>
-          <TouchableOpacity 
+         {/*  <TouchableOpacity 
             style={styles.controlButton}
             onPress={() => setShowLabels(!showLabels)}
           >
             <Text style={styles.buttonText}>{showLabels ? 'Hide Labels' : 'Show Labels'}</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           
           <TouchableOpacity 
             style={styles.controlButton}
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   controlButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#bcba40',
     paddingHorizontal: 15,
     paddingVertical: 12,
     borderRadius: 8,
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#bcba40',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
