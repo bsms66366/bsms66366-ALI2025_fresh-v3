@@ -80,28 +80,46 @@ const ARScene = () => {
         shininess: 0.5
       };
       
-      // Create all the materials
-      ViroMaterials.createMaterials(materials);
-
-      // Define animations
-      ViroAnimations.registerAnimations({
-        rotate: {
-          properties: {
-            rotateY: "+=360"
-          },
-          duration: 10000, // 10 seconds for a full rotation
-        },
-        loopRotate: {
-          properties: {
-            rotateY: "+=360"
-          },
-          duration: 10000,
-          easing: "Linear",
+      // Create all the materials - wrap in try/catch to handle potential errors
+      try {
+        if (ViroMaterials && typeof ViroMaterials.createMaterials === 'function') {
+          ViroMaterials.createMaterials(materials);
+          console.log("Materials initialized successfully");
+        } else {
+          console.warn("ViroMaterials not available or createMaterials is not a function");
         }
-      });
+      } catch (materialError) {
+        console.warn("Error creating Viro materials:", materialError);
+      }
+
+      // Define animations - wrap in try/catch to handle potential errors
+      try {
+        if (ViroAnimations && typeof ViroAnimations.registerAnimations === 'function') {
+          ViroAnimations.registerAnimations({
+            rotate: {
+              properties: {
+                rotateY: "+=360"
+              },
+              duration: 10000, // 10 seconds for a full rotation
+            },
+            loopRotate: {
+              properties: {
+                rotateY: "+=360"
+              },
+              duration: 10000,
+              easing: "Linear",
+            }
+          });
+          console.log("Animations registered successfully");
+        } else {
+          console.warn("ViroAnimations not available or registerAnimations is not a function");
+        }
+      } catch (animationError) {
+        console.warn("Error registering Viro animations:", animationError);
+      }
       
       materialsInitialized.current = true;
-      console.log("Materials and animations initialized successfully");
+      console.log("Materials and animations initialization completed");
     } catch (error) {
       console.warn('Error initializing Viro materials or animations:', error);
     }
@@ -449,6 +467,8 @@ const ViroARScreen = () => {
   );
 };
 
+export default ViroARScreen;
+
 const { width, height } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
@@ -539,5 +559,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-export default ViroARScreen;

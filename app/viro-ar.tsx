@@ -1,9 +1,11 @@
 import React from 'react';
-import { Stack } from 'expo-router';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Stack, router } from 'expo-router';
 // Import directly from the file path with the correct relative path
 import ViroARScreen from './(resources)/ViroARScreen';
 
-export default function ViroARScreenRoute() {
+// Create a wrapper component to handle the ViroReact initialization
+const ViroARScreenRoute = () => {
   return (
     <>
       <Stack.Screen
@@ -15,4 +17,7 @@ export default function ViroARScreenRoute() {
       <ViroARScreen />
     </>
   );
-}
+};
+
+// Make sure to export the component as default
+export default ViroARScreenRoute;

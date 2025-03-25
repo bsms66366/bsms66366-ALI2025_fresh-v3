@@ -60,7 +60,7 @@ export default function ResourcesScreen() {
       {/* Second Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/viro-ar")}>
+          <Pressable onPress={() => router.push("/(resources)/ModelFetchScreen")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard39.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
