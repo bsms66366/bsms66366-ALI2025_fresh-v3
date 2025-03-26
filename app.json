@@ -47,7 +47,8 @@
             "xRMode": "AR"
           }
         }
-      ]
+      ],
+      "expo-barcode-scanner"
     ],
     "experiments": {
       "typedRoutes": true

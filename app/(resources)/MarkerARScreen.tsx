@@ -16,7 +16,7 @@ import {
 } from '@reactvision/react-viro';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import * as BarCodeScanner from 'expo-barcode-scanner';
 
 // Define proper types for ViroReact components
 type ViroSceneProps = {
@@ -417,7 +417,7 @@ const MarkerARScreen = () => {
   if (scanMode) {
     return (
       <View style={styles.container}>
-        <BarCodeScanner
+        <BarCodeScanner.BarCodeScanner
           onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
           style={styles.scanner}
         />
