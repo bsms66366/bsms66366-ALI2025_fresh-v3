@@ -16,7 +16,6 @@ import {
 } from '@reactvision/react-viro';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as BarCodeScanner from 'expo-barcode-scanner';
 
 // Define proper types for ViroReact components
 type ViroSceneProps = {
@@ -213,17 +212,13 @@ const MarkerARScene = (props: ViroSceneProps) => {
 
 // Main component
 const MarkerARScreen = () => {
-  const [showInstructions, setShowInstructions] = useState(true);
-  const [arSupported, setArSupported] = useState(true);
-  const [modelUri, setModelUri] = useState('');
-  const [markerImage, setMarkerImage] = useState('');
-  const [modelMetadata, setModelMetadata] = useState<any>(null);
-  const [loadingError, setLoadingError] = useState('');
+  const [modelUri, setModelUri] = useState<string | null>(null);
+  const [markerImage, setMarkerImage] = useState<string | null>(null);
   const [markerFound, setMarkerFound] = useState(false);
-  const [scanMode, setScanMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const getModelUri = async () => {
@@ -236,7 +231,6 @@ const MarkerARScreen = () => {
           const metadataStr = await AsyncStorage.getItem('currentModelMetadata');
           if (metadataStr) {
             const metadata = JSON.parse(metadataStr);
-            setModelMetadata(metadata);
             console.log('Retrieved model metadata:', metadata);
           }
         } catch (metadataError) {
@@ -282,76 +276,17 @@ const MarkerARScreen = () => {
     
     // Request camera permissions for QR scanning
     const getBarCodeScannerPermissions = async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
-      setHasPermission(status === 'granted');
+      setHasPermission(true);
     };
     getBarCodeScannerPermissions();
     
-    // Hide instructions after 5 seconds
-    const timer = setTimeout(() => {
-      setShowInstructions(false);
-    }, 5000);
-    
     // Cleanup function
     return () => {
-      clearTimeout(timer);
       (global as any).modelLoadingState.setLoadingError = undefined;
       (global as any).modelLoadingState.setIsLoading = undefined;
       (global as any).modelLoadingState.setMarkerFound = undefined;
     };
   }, []);
-
-  // Handle QR code scanning
-  const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
-    try {
-      setScanned(true);
-      setLoading(true);
-      setLoadingError('');
-      
-      console.log(`Bar code with type ${type} and data ${data} has been scanned!`);
-      
-      // Check if the QR code contains valid model data
-      if (data.startsWith('http') && (data.endsWith('.glb') || data.endsWith('.gltf') || data.includes('model='))) {
-        // Extract model URI from the QR code data
-        let modelUri = data;
-        
-        // If the QR code contains a URL with a model parameter, extract it
-        if (data.includes('model=')) {
-          const url = new URL(data);
-          const modelParam = url.searchParams.get('model');
-          if (modelParam) {
-            modelUri = modelParam;
-          }
-        }
-        
-        // Store the model URI for use in the AR screen
-        await AsyncStorage.setItem('currentModelUri', modelUri);
-        setModelUri(modelUri);
-        
-        // Create a simple metadata object
-        const metadata = {
-          name: 'QR Scanned Model',
-          description: 'Model loaded from QR code',
-          source: 'qr_scan'
-        };
-        
-        await AsyncStorage.setItem('currentModelMetadata', JSON.stringify(metadata));
-        setModelMetadata(metadata);
-        
-        // Exit scan mode and show AR view
-        setScanMode(false);
-        setLoading(false);
-      } else {
-        // If the QR code doesn't contain valid model data
-        setLoadingError('Invalid QR code. Please scan a QR code that contains a 3D model URL.');
-        setLoading(false);
-      }
-    } catch (err) {
-      console.error('Error processing QR code:', err);
-      setLoadingError('Error processing QR code. Please try again.');
-      setLoading(false);
-    }
-  };
 
   // Check if we're on a real device that can support AR
   const isRealDevice = Platform.OS !== 'web' && !Platform.isTV;
@@ -364,7 +299,7 @@ const MarkerARScreen = () => {
         </Text>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => router.push("/(tabs)")}
+          onPress={() => router.push("/")}
         >
           <Text style={styles.buttonText}>Go Back</Text>
         </TouchableOpacity>
@@ -373,7 +308,7 @@ const MarkerARScreen = () => {
   }
 
   // Handle permission denied for camera
-  if (scanMode && hasPermission === null) {
+  if (hasPermission === null) {
     return (
       <View style={styles.container}>
         <Text style={styles.text}>Requesting camera permission...</Text>
@@ -381,16 +316,16 @@ const MarkerARScreen = () => {
     );
   }
   
-  if (scanMode && hasPermission === false) {
+  if (hasPermission === false) {
     return (
       <View style={styles.container}>
         <Text style={styles.text}>No access to camera</Text>
         <Text style={styles.subText}>Camera permission is required to scan QR codes.</Text>
         <TouchableOpacity 
           style={styles.button}
-          onPress={() => setScanMode(false)}
+          onPress={() => setHasPermission(null)}
         >
-          <Text style={styles.buttonText}>Go Back</Text>
+          <Text style={styles.buttonText}>Request Permission Again</Text>
         </TouchableOpacity>
       </View>
     );
@@ -413,120 +348,70 @@ const MarkerARScreen = () => {
     );
   };
 
-  // QR Scanner Mode
-  if (scanMode) {
-    return (
-      <View style={styles.container}>
-        <BarCodeScanner.BarCodeScanner
-          onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-          style={styles.scanner}
-        />
-        
-        {/* Overlay with instructions */}
-        <View style={styles.overlay}>
-          <View style={styles.scanArea} />
-          <Text style={styles.instructions}>
-            Position the QR code within the square
-          </Text>
-        </View>
-        
-        {/* Loading indicator */}
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#bcba40" />
-            <Text style={styles.loadingText}>Loading 3D model...</Text>
-          </View>
-        )}
-        
-        {/* Error message */}
-        {loadingError && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{loadingError}</Text>
-          </View>
-        )}
-        
-        {/* Controls */}
-        <View style={styles.controlsContainer}>
-          {scanned && !loading && (
-            <TouchableOpacity 
-              style={styles.controlButton}
-              onPress={() => setScanned(false)}
-            >
-              <Text style={styles.buttonText}>Scan Again</Text>
-            </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity 
-            style={styles.controlButton}
-            onPress={() => setScanMode(false)}
-          >
-            <Text style={styles.buttonText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
   // AR Mode
   return (
     <View style={styles.container}>
-      {!arSupported ? (
-        <Text style={styles.errorText}>AR is not supported on this device</Text>
-      ) : (
-        <>
-          <ARSceneWrapper modelUri={modelUri} markerImage={markerImage} />
-          
-          {/* Instructions overlay */}
-          {showInstructions && (
-            <View style={styles.instructionsContainer}>
-              <Text style={styles.instructionsText}>
-                Point your camera at the marker image to display the 3D model.
-              </Text>
-            </View>
-          )}
-          
-          {/* Marker not found message */}
-          {!markerFound && !showInstructions && (
-            <View style={styles.messageOverlay}>
-              <Text style={styles.messageText}>
-                Looking for marker...
-              </Text>
-              <Text style={styles.messageSubtext}>
-                Point your camera at the marker image
-              </Text>
-            </View>
-          )}
-          
-          {/* Loading error message */}
-          {loadingError && (
-            <View style={styles.messageOverlay}>
-              <Text style={styles.loadingErrorText}>{loadingError}</Text>
-            </View>
-          )}
-        </>
+      <ARSceneWrapper modelUri={modelUri || ''} markerImage={markerImage || ''} />
+      
+      {/* Instructions overlay */}
+      <View style={styles.instructionsContainer}>
+        <Text style={styles.instructionsText}>
+          Point your camera at the marker image to display the 3D model.
+        </Text>
+      </View>
+      
+      {/* Marker not found message */}
+      {!markerFound && (
+        <View style={styles.messageOverlay}>
+          <Text style={styles.messageText}>
+            Looking for marker...
+          </Text>
+          <Text style={styles.messageSubtext}>
+            Point your camera at the marker image
+          </Text>
+        </View>
+      )}
+      
+      {/* Loading error message */}
+      {loadingError && (
+        <View style={styles.messageOverlay}>
+          <Text style={styles.loadingErrorText}>{loadingError}</Text>
+        </View>
       )}
       
       {/* Controls */}
       <View style={styles.controlsContainer}>
         <TouchableOpacity 
           style={styles.controlButton}
-          onPress={() => setScanMode(true)}
+          onPress={() => router.push("/(tabs)/scanner")}
         >
           <Text style={styles.buttonText}>Scan QR Code</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
           style={styles.controlButton}
-          onPress={() => router.push("/(tabs)")}
+          onPress={() => router.push("/")}
         >
           <Text style={styles.buttonText}>Exit AR</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.controlButton}
+          onPress={() => router.push("/(tabs)/scanner")}
+        >
+          <Text style={styles.buttonText}>QR Scanner</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 };
 
-export default MarkerARScreen;
+// This is the default export for Expo Router
+function Page() {
+  return <MarkerARScreen />;
+}
+
+export default Page;
 
 const { width, height } = Dimensions.get('window');
 const scanAreaSize = width * 0.7;
@@ -628,45 +513,6 @@ const styles = StyleSheet.create({
     color: 'red',
     fontSize: 16,
     textAlign: 'center',
-    marginTop: 10,
-  },
-  scanner: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scanArea: {
-    width: scanAreaSize,
-    height: scanAreaSize,
-    borderWidth: 2,
-    borderColor: '#bcba40',
-    borderRadius: 10,
-  },
-  instructions: {
-    color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 20,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 10,
-    borderRadius: 5,
-  },
-  loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.8)',
-  },
-  loadingText: {
-    color: 'white',
-    fontSize: 18,
     marginTop: 10,
   },
   text: {
