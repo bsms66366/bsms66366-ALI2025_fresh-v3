@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ActivityIndicator } from 'react-native';
 import {
   ViroARScene,
   ViroARSceneNavigator,
@@ -13,9 +13,20 @@ import {
 } from '@reactvision/react-viro';
 import { Asset } from 'expo-asset';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Define the model paths
-const LARYNX_MODEL = require('@/assets/models/larynx_with_muscles_and_ligaments.glb');
+// Declare global interface to add our custom properties
+declare global {
+  var modelLoadingState: {
+    setIsLoading?: (isLoading: boolean) => void;
+    setLoadingError?: (error: string) => void;
+  };
+}
+
+// Initialize global state object if it doesn't exist
+if (!global.modelLoadingState) {
+  global.modelLoadingState = {};
+}
 
 // Create a context for sharing animation state
 const AnimationContext = createContext({
@@ -23,8 +34,17 @@ const AnimationContext = createContext({
   setIsAnimating: (value: boolean) => {}
 });
 
+// Define proper types for ViroReact components
+type ViroSceneProps = {
+  sceneNavigator: {
+    viroAppProps?: {
+      modelUri?: string;
+    };
+  };
+};
+
 // The AR Scene component
-const ARScene = () => {
+const ARScene = (props: ViroSceneProps) => {
   const { isAnimating } = useContext(AnimationContext);
   const [modelRotation, setModelRotation] = useState<[number, number, number]>([0, 0, 0]);
   const [modelScale] = useState<[number, number, number]>([0.05, 0.05, 0.05]); // Increased scale slightly since we moved it further away
@@ -174,6 +194,11 @@ const ARScene = () => {
   const onObjectLoaded = () => {
     console.log("3D Model loaded successfully");
     
+    // Signal to parent component that loading is complete
+    if (global.modelLoadingState.setIsLoading) {
+      global.modelLoadingState.setIsLoading(false);
+    }
+    
     // Apply custom material handling
     try {
       console.log("Model loaded - applying materials based on mesh indices");
@@ -195,155 +220,69 @@ const ARScene = () => {
   // Handle errors
   const onError = (event: any) => {
     console.error("Error loading 3D model:", event.nativeEvent.error);
+    if (global.modelLoadingState.setIsLoading && global.modelLoadingState.setLoadingError) {
+      global.modelLoadingState.setIsLoading(false);
+      global.modelLoadingState.setLoadingError(`Error loading 3D model: ${event.nativeEvent.error}`);
+    }
   };
+
+  // Get modelUri from props
+  const modelUri = props.sceneNavigator?.viroAppProps?.modelUri || '';
 
   return (
     <ViroARScene>
-      {/* Ambient light for overall scene illumination - extremely high intensity */}
-      <ViroAmbientLight color="#ffffff" intensity={12.0} />
+      {/* Basic ambient light for overall scene illumination */}
+      <ViroAmbientLight color="#ffffff" intensity={0.7} />
       
-      {/* Directional light for better shadows and depth - extremely high intensity */}
+      {/* Primary directional light */}
       <ViroDirectionalLight
         color="#ffffff"
         direction={[0, -1, -0.2]}
-        intensity={15.0}
+        intensity={0.8}
       />
       
-      {/* Main spot light from above - extremely bright */}
+      {/* Front light - moved much closer */}
       <ViroSpotLight
         innerAngle={20}
-        outerAngle={60}
-        direction={[0, -1, -0.2]}
-        position={[0, 5, 0]}
-        color="#ffffff"
-        castsShadow={true}
-        intensity={18.0}
-        shadowOpacity={0.3}
-      />
-      
-      {/* Secondary light from below - extremely bright */}
-      <ViroSpotLight
-        innerAngle={20}
-        outerAngle={60}
-        direction={[0, 1, -0.2]}
-        position={[0, -5, 0]}
-        color="#ffffff"
-        castsShadow={false}
-        intensity={15.0}
-      />
-      
-      {/* Front light for better visibility - extremely bright */}
-      <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
+        outerAngle={40}
         direction={[0, 0, -1]}
-        position={[0, 0, 5]}
+        position={[0, 0, -1]}
         color="#ffffff"
         castsShadow={false}
-        intensity={25.0}
+        intensity={0.9}
       />
       
-      {/* Additional front lights from slightly different angles */}
+      {/* Back light - moved much closer */}
       <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
-        direction={[0.2, 0.2, -1]}
-        position={[-1, -1, 4.5]}
+        innerAngle={20}
+        outerAngle={40}
+        direction={[0, 0, 1]}
+        position={[0, 0, -9]}
         color="#ffffff"
         castsShadow={false}
-        intensity={19.0}
+        intensity={0.9}
       />
       
+      {/* Top light - added */}
       <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
-        direction={[-0.2, 0.2, -1]}
-        position={[1, -1, 4.5]}
+        innerAngle={20}
+        outerAngle={40}
+        direction={[0, -1, 0]}
+        position={[0, 2, -5]}
         color="#ffffff"
         castsShadow={false}
-        intensity={19.0}
+        intensity={0.9}
       />
       
+      {/* Bottom light - added */}
       <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
-        direction={[0.2, -0.2, -1]}
-        position={[-1, 1, 4.5]}
+        innerAngle={20}
+        outerAngle={40}
+        direction={[0, 1, 0]}
+        position={[0, -2, -5]}
         color="#ffffff"
         castsShadow={false}
-        intensity={19.0}
-      />
-      
-      <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
-        direction={[-0.2, -0.2, -1]}
-        position={[1, 1, 4.5]}
-        color="#ffffff"
-        castsShadow={false}
-        intensity={19.0}
-      />
-      
-      {/* Side lights for better coverage - extremely bright */}
-      <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
-        direction={[1, 0, 0]}
-        position={[-5, 0, 0]}
-        color="#ffffff"
-        castsShadow={false}
-        intensity={20.0}
-      />
-      
-      <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
-        direction={[-1, 0, 0]}
-        position={[5, 0, 0]}
-        color="#ffffff"
-        castsShadow={false}
-        intensity={15.0}
-      />
-      
-      {/* Additional diagonal lights for complete coverage */}
-      <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
-        direction={[1, 1, -1]}
-        position={[-3, -3, 3]}
-        color="#ffffff"
-        castsShadow={false}
-        intensity={20.0}
-      />
-      
-      <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
-        direction={[-1, 1, -1]}
-        position={[3, -3, 3]}
-        color="#ffffff"
-        castsShadow={false}
-        intensity={14.0}
-      />
-      
-      <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
-        direction={[1, -1, -1]}
-        position={[-3, 3, 3]}
-        color="#ffffff"
-        castsShadow={false}
-        intensity={14.0}
-      />
-      
-      <ViroSpotLight
-        innerAngle={30}
-        outerAngle={70}
-        direction={[-1, -1, -1]}
-        position={[3, 3, 3]}
-        color="#ffffff"
-        castsShadow={false}
-        intensity={14.0}
+        intensity={0.9}
       />
       
       {/* 3D Model Node with animation */}
@@ -353,15 +292,12 @@ const ARScene = () => {
       >
         <Viro3DObject
           ref={modelRef}
-          source={LARYNX_MODEL}
+          source={modelUri ? { uri: modelUri } : require('@/assets/models/larynx_with_muscles_and_ligaments.glb')}
           scale={modelScale}
           type="GLB"
-          position={[0, 0, 0]}
-          materials={anatomicalParts.map((_, index) => `material_${index}`).concat(['defaultMaterial'])}
           onLoadStart={() => console.log("Starting to load model")}
           onLoadEnd={onObjectLoaded}
           onError={onError}
-          highAccuracyEvents={true}
         />
       </ViroNode>
     </ViroARScene>
@@ -374,6 +310,51 @@ const ViroARScreen = () => {
   const [showLabels, setShowLabels] = useState(true);
   const [arSupported, setArSupported] = useState(true);
   const [isAnimating, setIsAnimating] = useState(true);
+  const [modelUri, setModelUri] = useState('');
+  const [modelMetadata, setModelMetadata] = useState<any>(null);
+  const [loadingError, setLoadingError] = useState('');
+
+  useEffect(() => {
+    const getModelUri = async () => {
+      try {
+        const storedModelUri = await AsyncStorage.getItem('currentModelUri');
+        console.log('Retrieved model URI from storage:', storedModelUri);
+        
+        // Get model metadata if available
+        try {
+          const metadataStr = await AsyncStorage.getItem('currentModelMetadata');
+          if (metadataStr) {
+            const metadata = JSON.parse(metadataStr);
+            setModelMetadata(metadata);
+            console.log('Retrieved model metadata:', metadata);
+          }
+        } catch (metadataError) {
+          console.error('Error parsing model metadata:', metadataError);
+        }
+        
+        if (storedModelUri) {
+          setModelUri(storedModelUri);
+        } else {
+          // Use default model if no stored URI
+          console.log('No stored model URI found, using default model');
+          setModelUri('');
+        }
+        
+        // Share state setters with global scope for ARScene to access
+        global.modelLoadingState.setLoadingError = setLoadingError;
+        
+      } catch (error) {
+        console.error('Error getting model URI from storage:', error);
+        setLoadingError('Failed to retrieve model information');
+      }
+    };
+    getModelUri();
+    
+    // Cleanup function
+    return () => {
+      global.modelLoadingState.setLoadingError = undefined;
+    };
+  }, []);
 
   // Hide instructions after 5 seconds
   useEffect(() => {
@@ -403,40 +384,43 @@ const ViroARScreen = () => {
     );
   }
 
+  // Wrapper component to handle ViroARSceneNavigator
+  const ARSceneWrapper = ({ modelUri }: { modelUri: string }) => {
+    // Cast the scene to any to bypass TypeScript errors
+    const arScene = {
+      scene: ARScene as any
+    };
+
+    return (
+      <ViroARSceneNavigator
+        initialScene={arScene}
+        viroAppProps={{ modelUri }}
+        style={styles.arView}
+        autofocus={true}
+      />
+    );
+  };
+
   return (
     <AnimationContext.Provider value={{ isAnimating, setIsAnimating }}>
       <View style={styles.container}>
-        <ViroARSceneNavigator
-          initialScene={{
-            scene: ARScene,
-          }}
-          style={styles.arView}
-          autofocus={true}
-        />
-        
-        {/* AR not supported message */}
-        {!arSupported && (
-          <View style={styles.arNotSupportedContainer}>
-            <Text style={styles.arNotSupportedText}>
-              AR is not supported on this device.
-            </Text>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => router.push("/(tabs)")}
-            >
-              <Text style={styles.buttonText}>Go Back</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        
-        {/* Instructions overlay */}
-        {showInstructions && (
-          <View style={styles.instructionsContainer}>
-            <Text style={styles.instructionsText}>
-              Move your device around to detect surfaces.{'\n'}
-              Tap on a surface to place the 3D model.
-            </Text>
-          </View>
+        {!arSupported ? (
+          <Text style={styles.errorText}>AR is not supported on this device</Text>
+        ) : (
+          <>
+            <ARSceneWrapper modelUri={modelUri} />
+            
+            {/* Overlay message while model loads */}
+            <View style={styles.messageOverlay}>
+              <Text style={styles.messageText}>
+                {modelMetadata?.name ? `Loading ${modelMetadata.name}...` : 'Loading 3D model...'}
+              </Text>
+              <Text style={styles.messageSubtext}>Please be patient while the model loads</Text>
+              {loadingError && (
+                <Text style={styles.loadingErrorText}>{loadingError}</Text>
+              )}
+            </View>
+          </>
         )}
         
         {/* Controls */}
@@ -557,5 +541,34 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  messageOverlay: {
+    position: 'absolute',
+    top: 20,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: 15,
+    alignItems: 'center',
+    borderRadius: 10,
+    margin: 20,
+  },
+  messageText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  messageSubtext: {
+    color: 'white',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 5,
+  },
+  loadingErrorText: {
+    color: 'red',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 10,
   },
 });

@@ -1,18 +1,18 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 // Import directly from the file path with the correct relative path
-import ViroARScreen from './(resources)/ViroARScreen';
+import MarkerARScreen from './(resources)/MarkerARScreen';
 
-export default function ViroARScreenRoute() {
+export default function MarkerARScreenRoute() {
   return (
     <>
       <Stack.Screen
         options={{
-          title: 'ViroReact AR View',
+          title: 'Marker-Based AR View',
           headerShown: false,
         }}
       />
-      <ViroARScreen />
+      <MarkerARScreen />
     </>
   );
 }

@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import axios from 'axios';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Define model types
 interface Model {
@@ -123,8 +124,33 @@ const ModelFetchScreen = () => {
         await FileSystem.makeDirectoryAsync(modelDir, { intermediates: true });
       }
       
-      // Local path to save the model
-      const localUri = `${modelDir}${selectedModel.id}.glb`;
+      // Extract the original filename from the URL or use the question field
+      let originalFilename = selectedModel.question;
+      
+      // If the URL contains a filename, extract it
+      if (selectedModel.url) {
+        const urlParts = selectedModel.url.split('/');
+        const urlFilename = urlParts[urlParts.length - 1];
+        if (urlFilename && urlFilename.includes('.')) {
+          originalFilename = urlFilename;
+        }
+      }
+      
+      // Ensure the filename ends with .glb
+      if (!originalFilename.toLowerCase().endsWith('.glb')) {
+        originalFilename = `${originalFilename}.glb`;
+      }
+      
+      // Local path to save the model with original filename
+      const localUri = `${modelDir}${originalFilename}`;
+      
+      // Store model metadata for reference
+      await AsyncStorage.setItem('currentModelMetadata', JSON.stringify({
+        id: selectedModel.id,
+        name: selectedModel.question,
+        filename: originalFilename,
+        description: selectedModel.description
+      }));
       
       // Check if model already exists
       const fileInfo = await FileSystem.getInfoAsync(localUri);
@@ -163,9 +189,21 @@ const ModelFetchScreen = () => {
   
   // Navigate to AR screen with the downloaded model
   const navigateToARScreen = (modelUri: string) => {
-    // In a real implementation, you would pass the model URI to the AR screen
-    // Navigate to the viro-ar route
-    router.push("/viro-ar");
+    // Pass the model URI to the AR screen
+    console.log('Navigating to AR screen with model:', modelUri);
+    
+    // Store the model URI in AsyncStorage before navigation
+    const storeModelUri = async () => {
+      try {
+        await AsyncStorage.setItem('currentModelUri', modelUri);
+        router.push("/viro-ar");
+      } catch (error) {
+        console.error('Error storing model URI:', error);
+        Alert.alert('Error', 'Failed to prepare model for AR view');
+      }
+    };
+    
+    storeModelUri();
   };
   
   // Load models when the screen mounts
@@ -180,7 +218,7 @@ const ModelFetchScreen = () => {
       {/* Header Image */}
       <View style={styles.imageContainer}>
         <Image 
-          source={require('../../assets/images/interfaceIcons_Artboard29.png')} 
+          source={require('../../assets/images/interfaceIcons_Artboard39.png')} 
           style={styles.headerImage} 
         />
       </View>
@@ -272,11 +310,13 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 150,
     marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerImage: {
-    width: '100%',
+    width: '25%',
     height: '100%',
-    resizeMode: 'cover',
+    resizeMode: 'contain',
   },
   modelSelectionContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',

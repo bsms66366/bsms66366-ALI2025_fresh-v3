@@ -47,12 +47,12 @@ export default function ResourcesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/(resources)/PathPotsScreen" as any)}>
+          <Pressable onPress={() => router.push("/marker-ar")}>
             <Image 
-              source={require('../../assets/images/interfaceIcons_Artboard29.png')} 
+              source={require('../../assets/images/interfaceIcons_Artboard39.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
             />
-            <Text style={styles.titleText}>Clinical Key</Text>
+            <Text style={styles.titleText}>Marker AR</Text>
           </Pressable>
         </View>
       </View>
