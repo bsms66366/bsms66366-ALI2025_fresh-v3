@@ -16,6 +16,7 @@ import {
 } from '@reactvision/react-viro';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BarCodeScanner } from 'expo-barcode-scanner';
 
 // Define proper types for ViroReact components
 type ViroSceneProps = {
@@ -132,8 +133,13 @@ const MarkerARScene = (props: ViroSceneProps) => {
     setMarkerFound(true);
     
     // Signal to parent component that marker is found
-    if (global.modelLoadingState?.setIsLoading) {
-      global.modelLoadingState.setIsLoading(false);
+    if ((global as any).modelLoadingState?.setIsLoading) {
+      (global as any).modelLoadingState.setIsLoading(false);
+    }
+    
+    // Signal to parent component that marker is found
+    if ((global as any).modelLoadingState?.setMarkerFound) {
+      (global as any).modelLoadingState.setMarkerFound(true);
     }
   };
   
@@ -141,6 +147,11 @@ const MarkerARScene = (props: ViroSceneProps) => {
   const onMarkerLost = () => {
     console.log("Marker lost!");
     setMarkerFound(false);
+    
+    // Signal to parent component that marker is lost
+    if ((global as any).modelLoadingState?.setMarkerFound) {
+      (global as any).modelLoadingState.setMarkerFound(false);
+    }
   };
   
   // Handle model loaded event
@@ -151,8 +162,8 @@ const MarkerARScene = (props: ViroSceneProps) => {
   // Handle errors
   const onError = (event: any) => {
     console.error("Error loading 3D model:", event.nativeEvent.error);
-    if (global.modelLoadingState?.setLoadingError) {
-      global.modelLoadingState.setLoadingError(`Error loading 3D model: ${event.nativeEvent.error}`);
+    if ((global as any).modelLoadingState?.setLoadingError) {
+      (global as any).modelLoadingState.setLoadingError(`Error loading 3D model: ${event.nativeEvent.error}`);
     }
   };
 
@@ -209,6 +220,10 @@ const MarkerARScreen = () => {
   const [modelMetadata, setModelMetadata] = useState<any>(null);
   const [loadingError, setLoadingError] = useState('');
   const [markerFound, setMarkerFound] = useState(false);
+  const [scanMode, setScanMode] = useState(false);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [scanned, setScanned] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const getModelUri = async () => {
@@ -248,14 +263,15 @@ const MarkerARScreen = () => {
         }
         
         // Share state setters with global scope for ARScene to access
-        if (!global.modelLoadingState) {
-          global.modelLoadingState = {};
+        if (!(global as any).modelLoadingState) {
+          (global as any).modelLoadingState = {};
         }
-        global.modelLoadingState.setLoadingError = setLoadingError;
-        global.modelLoadingState.setIsLoading = (isLoading: boolean) => {
+        (global as any).modelLoadingState.setLoadingError = setLoadingError;
+        (global as any).modelLoadingState.setIsLoading = (isLoading: boolean) => {
           // This is a placeholder for now
           console.log('Model loading state:', isLoading ? 'loading' : 'loaded');
         };
+        (global as any).modelLoadingState.setMarkerFound = setMarkerFound;
         
       } catch (error) {
         console.error('Error getting model URI from storage:', error);
@@ -263,6 +279,13 @@ const MarkerARScreen = () => {
       }
     };
     getModelUri();
+    
+    // Request camera permissions for QR scanning
+    const getBarCodeScannerPermissions = async () => {
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      setHasPermission(status === 'granted');
+    };
+    getBarCodeScannerPermissions();
     
     // Hide instructions after 5 seconds
     const timer = setTimeout(() => {
@@ -272,10 +295,63 @@ const MarkerARScreen = () => {
     // Cleanup function
     return () => {
       clearTimeout(timer);
-      global.modelLoadingState.setLoadingError = undefined;
-      global.modelLoadingState.setIsLoading = undefined;
+      (global as any).modelLoadingState.setLoadingError = undefined;
+      (global as any).modelLoadingState.setIsLoading = undefined;
+      (global as any).modelLoadingState.setMarkerFound = undefined;
     };
   }, []);
+
+  // Handle QR code scanning
+  const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
+    try {
+      setScanned(true);
+      setLoading(true);
+      setLoadingError('');
+      
+      console.log(`Bar code with type ${type} and data ${data} has been scanned!`);
+      
+      // Check if the QR code contains valid model data
+      if (data.startsWith('http') && (data.endsWith('.glb') || data.endsWith('.gltf') || data.includes('model='))) {
+        // Extract model URI from the QR code data
+        let modelUri = data;
+        
+        // If the QR code contains a URL with a model parameter, extract it
+        if (data.includes('model=')) {
+          const url = new URL(data);
+          const modelParam = url.searchParams.get('model');
+          if (modelParam) {
+            modelUri = modelParam;
+          }
+        }
+        
+        // Store the model URI for use in the AR screen
+        await AsyncStorage.setItem('currentModelUri', modelUri);
+        setModelUri(modelUri);
+        
+        // Create a simple metadata object
+        const metadata = {
+          name: 'QR Scanned Model',
+          description: 'Model loaded from QR code',
+          source: 'qr_scan'
+        };
+        
+        await AsyncStorage.setItem('currentModelMetadata', JSON.stringify(metadata));
+        setModelMetadata(metadata);
+        
+        // Exit scan mode and show AR view
+        setScanMode(false);
+        setLoading(false);
+      } else {
+        // If the QR code doesn't contain valid model data
+        setLoadingError('Invalid QR code. Please scan a QR code that contains a 3D model URL.');
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error('Error processing QR code:', err);
+      setLoadingError('Error processing QR code. Please try again.');
+      setLoading(false);
+    }
+  };
 
   // Check if we're on a real device that can support AR
   const isRealDevice = Platform.OS !== 'web' && !Platform.isTV;
@@ -289,6 +365,30 @@ const MarkerARScreen = () => {
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => router.push("/(tabs)")}
+        >
+          <Text style={styles.buttonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Handle permission denied for camera
+  if (scanMode && hasPermission === null) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>Requesting camera permission...</Text>
+      </View>
+    );
+  }
+  
+  if (scanMode && hasPermission === false) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>No access to camera</Text>
+        <Text style={styles.subText}>Camera permission is required to scan QR codes.</Text>
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={() => setScanMode(false)}
         >
           <Text style={styles.buttonText}>Go Back</Text>
         </TouchableOpacity>
@@ -313,6 +413,61 @@ const MarkerARScreen = () => {
     );
   };
 
+  // QR Scanner Mode
+  if (scanMode) {
+    return (
+      <View style={styles.container}>
+        <BarCodeScanner
+          onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+          style={styles.scanner}
+        />
+        
+        {/* Overlay with instructions */}
+        <View style={styles.overlay}>
+          <View style={styles.scanArea} />
+          <Text style={styles.instructions}>
+            Position the QR code within the square
+          </Text>
+        </View>
+        
+        {/* Loading indicator */}
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#bcba40" />
+            <Text style={styles.loadingText}>Loading 3D model...</Text>
+          </View>
+        )}
+        
+        {/* Error message */}
+        {loadingError && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{loadingError}</Text>
+          </View>
+        )}
+        
+        {/* Controls */}
+        <View style={styles.controlsContainer}>
+          {scanned && !loading && (
+            <TouchableOpacity 
+              style={styles.controlButton}
+              onPress={() => setScanned(false)}
+            >
+              <Text style={styles.buttonText}>Scan Again</Text>
+            </TouchableOpacity>
+          )}
+          
+          <TouchableOpacity 
+            style={styles.controlButton}
+            onPress={() => setScanMode(false)}
+          >
+            <Text style={styles.buttonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // AR Mode
   return (
     <View style={styles.container}>
       {!arSupported ? (
@@ -355,6 +510,13 @@ const MarkerARScreen = () => {
       <View style={styles.controlsContainer}>
         <TouchableOpacity 
           style={styles.controlButton}
+          onPress={() => setScanMode(true)}
+        >
+          <Text style={styles.buttonText}>Scan QR Code</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.controlButton}
           onPress={() => router.push("/(tabs)")}
         >
           <Text style={styles.buttonText}>Exit AR</Text>
@@ -367,6 +529,7 @@ const MarkerARScreen = () => {
 export default MarkerARScreen;
 
 const { width, height } = Dimensions.get('window');
+const scanAreaSize = width * 0.7;
 
 const styles = StyleSheet.create({
   container: {
@@ -409,7 +572,7 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-around',
     flexWrap: 'wrap',
     gap: 10,
   },
@@ -420,7 +583,7 @@ const styles = StyleSheet.create({
     borderColor: '#101010',
     borderStyle: 'solid',
     borderRadius: 8,
-    minWidth: width * 0.3,
+    minWidth: width * 0.4,
     alignItems: 'center',
   },
   backButton: {
@@ -466,5 +629,64 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 10,
+  },
+  scanner: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanArea: {
+    width: scanAreaSize,
+    height: scanAreaSize,
+    borderWidth: 2,
+    borderColor: '#bcba40',
+    borderRadius: 10,
+  },
+  instructions: {
+    color: 'white',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 20,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 10,
+    borderRadius: 5,
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 18,
+    marginTop: 10,
+  },
+  text: {
+    color: 'white',
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  subText: {
+    color: '#aaa',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+  button: {
+    backgroundColor: '#bcba40',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: width * 0.4,
+    alignItems: 'center',
   },
 });
