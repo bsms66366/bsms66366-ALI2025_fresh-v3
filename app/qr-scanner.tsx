@@ -1,6 +1,7 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-import { QRScannerScreen } from './(resources)/QRScannerScreen';
+// Import from the components directory
+import QRScannerScreen from '../components/QRScannerScreen';
 
 // This is the default export for Expo Router
 export default function QRScannerRoute() {

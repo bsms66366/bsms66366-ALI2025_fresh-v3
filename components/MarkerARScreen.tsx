@@ -156,6 +156,9 @@ const MarkerARScene = (props: ViroSceneProps) => {
   // Handle model loaded event
   const onObjectLoaded = () => {
     console.log("3D Model loaded successfully");
+    if ((global as any).modelLoadingState?.setModelLoaded) {
+      (global as any).modelLoadingState.setModelLoaded(true);
+    }
   };
   
   // Handle errors
@@ -219,10 +222,17 @@ const MarkerARScreen = () => {
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
+  const [modelLoaded, setModelLoaded] = useState(false);
 
   useEffect(() => {
     const getModelUri = async () => {
       try {
+        setLoading(true);
+        setLoadingError(null);
+        
+        // Add a small delay to ensure AsyncStorage is ready
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
         const storedModelUri = await AsyncStorage.getItem('currentModelUri');
         console.log('Retrieved model URI from storage:', storedModelUri);
         
@@ -243,12 +253,17 @@ const MarkerARScreen = () => {
           if (storedMarkerImage) {
             setMarkerImage(storedMarkerImage);
             console.log('Retrieved marker image from storage:', storedMarkerImage);
+          } else {
+            console.log('Using default marker image');
           }
         } catch (markerError) {
           console.error('Error getting marker image from storage:', markerError);
         }
         
         if (storedModelUri) {
+          console.log('Setting model URI:', storedModelUri);
+          
+          // Set the model URI without pre-validation to avoid network issues
           setModelUri(storedModelUri);
         } else {
           // Use default model if no stored URI
@@ -256,20 +271,36 @@ const MarkerARScreen = () => {
           setModelUri('');
         }
         
-        // Share state setters with global scope for ARScene to access
+        // Initialize global state handlers only once
         if (!(global as any).modelLoadingState) {
           (global as any).modelLoadingState = {};
         }
-        (global as any).modelLoadingState.setLoadingError = setLoadingError;
-        (global as any).modelLoadingState.setIsLoading = (isLoading: boolean) => {
-          // This is a placeholder for now
-          console.log('Model loading state:', isLoading ? 'loading' : 'loaded');
-        };
-        (global as any).modelLoadingState.setMarkerFound = setMarkerFound;
         
+        // Only set these handlers if they're not already set
+        if (!(global as any).modelLoadingState.setLoadingError) {
+          (global as any).modelLoadingState.setLoadingError = setLoadingError;
+        }
+        
+        if (!(global as any).modelLoadingState.setIsLoading) {
+          (global as any).modelLoadingState.setIsLoading = (isLoading: boolean) => {
+            console.log('Model loading state:', isLoading ? 'loading' : 'loaded');
+            setLoading(isLoading);
+          };
+        }
+        
+        if (!(global as any).modelLoadingState.setMarkerFound) {
+          (global as any).modelLoadingState.setMarkerFound = setMarkerFound;
+        }
+        
+        if (!(global as any).modelLoadingState.setModelLoaded) {
+          (global as any).modelLoadingState.setModelLoaded = setModelLoaded;
+        }
+        
+        setLoading(false);
       } catch (error) {
         console.error('Error getting model URI from storage:', error);
         setLoadingError('Failed to retrieve model information');
+        setLoading(false);
       }
     };
     getModelUri();
@@ -282,12 +313,15 @@ const MarkerARScreen = () => {
     
     // Cleanup function
     return () => {
-      (global as any).modelLoadingState.setLoadingError = undefined;
-      (global as any).modelLoadingState.setIsLoading = undefined;
-      (global as any).modelLoadingState.setMarkerFound = undefined;
+      if ((global as any).modelLoadingState) {
+        (global as any).modelLoadingState.setLoadingError = undefined;
+        (global as any).modelLoadingState.setIsLoading = undefined;
+        (global as any).modelLoadingState.setMarkerFound = undefined;
+        (global as any).modelLoadingState.setModelLoaded = undefined;
+      }
     };
-  }, []);
-
+  }, []); // Empty dependency array to run only once
+  
   // Check if we're on a real device that can support AR
   const isRealDevice = Platform.OS !== 'web' && !Platform.isTV;
 
@@ -351,57 +385,78 @@ const MarkerARScreen = () => {
   // AR Mode
   return (
     <View style={styles.container}>
-      <ARSceneWrapper modelUri={modelUri || ''} markerImage={markerImage || ''} />
-      
-      {/* Instructions overlay */}
-      <View style={styles.instructionsContainer}>
-        <Text style={styles.instructionsText}>
-          Point your camera at the marker image to display the 3D model.
-        </Text>
-      </View>
-      
-      {/* Marker not found message */}
-      {!markerFound && (
-        <View style={styles.messageOverlay}>
-          <Text style={styles.messageText}>
-            Looking for marker...
-          </Text>
-          <Text style={styles.messageSubtext}>
-            Point your camera at the marker image
-          </Text>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#ffffff" />
+          <Text style={styles.loadingText}>Loading 3D model...</Text>
         </View>
-      )}
-      
-      {/* Loading error message */}
-      {loadingError && (
-        <View style={styles.messageOverlay}>
-          <Text style={styles.loadingErrorText}>{loadingError}</Text>
+      ) : loadingError ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{loadingError}</Text>
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={() => router.push("/qr-scanner")}
+          >
+            <Text style={styles.buttonText}>Scan Another QR Code</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={() => {
+              setLoadingError(null);
+              setModelUri(''); // Use default model
+            }}
+          >
+            <Text style={styles.buttonText}>Use Default Model</Text>
+          </TouchableOpacity>
         </View>
+      ) : (
+        <>
+          <ARSceneWrapper modelUri={modelUri || ''} markerImage={markerImage || ''} />
+          
+          {/* Instructions overlay */}
+          <View style={styles.instructionsContainer}>
+            <Text style={styles.instructionsText}>
+              Point your camera at the marker image to display the 3D model.
+            </Text>
+          </View>
+          
+          {/* Marker not found message */}
+          {!markerFound && !loadingError && (
+            <View style={styles.messageOverlay}>
+              <Text style={styles.messageText}>
+                Looking for marker...
+              </Text>
+              <Text style={styles.messageSubtext}>
+                Point your camera at the marker image
+              </Text>
+            </View>
+          )}
+          
+          {/* Loading error message */}
+          {loadingError && (
+            <View style={styles.messageOverlay}>
+              <Text style={styles.loadingErrorText}>{loadingError}</Text>
+            </View>
+          )}
+          
+          {/* Controls */}
+          <View style={styles.controlsContainer}>
+            <TouchableOpacity 
+              style={styles.controlButton}
+              onPress={() => router.push("/qr-scanner")}
+            >
+              <Text style={styles.buttonText}>Scan QR Code</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.controlButton}
+              onPress={() => router.push("/")}
+            >
+              <Text style={styles.buttonText}>Exit AR</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       )}
-      
-      {/* Controls */}
-      <View style={styles.controlsContainer}>
-        <TouchableOpacity 
-          style={styles.controlButton}
-          onPress={() => router.push("/qr-scanner")}
-        >
-          <Text style={styles.buttonText}>Scan QR Code</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.controlButton}
-          onPress={() => router.push("/")}
-        >
-          <Text style={styles.buttonText}>Exit AR</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.controlButton}
-          onPress={() => router.push("/qr-scanner")}
-        >
-          <Text style={styles.buttonText}>QR Scanner</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 };
@@ -534,5 +589,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     minWidth: width * 0.4,
     alignItems: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 18,
+    textAlign: 'center',
+    marginTop: 20,
   },
 });

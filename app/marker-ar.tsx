@@ -1,8 +1,9 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-// Import the Page component from MarkerARScreen
-import Page from './(resources)/MarkerARScreen';
+// Import from the components directory
+import MarkerARScreen from '../components/MarkerARScreen';
 
+// This is the default export for Expo Router
 export default function MarkerARRoute() {
   return (
     <>
@@ -12,7 +13,7 @@ export default function MarkerARRoute() {
           headerShown: false,
         }}
       />
-      <Page />
+      <MarkerARScreen />
     </>
   );
 }

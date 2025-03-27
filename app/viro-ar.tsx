@@ -1,8 +1,9 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-// Import directly from the file path with the correct relative path
-import ViroARScreen from './(resources)/ViroARScreen';
+// Import from the components directory
+import ViroARScreen from '../components/ViroARScreen';
 
+// This is the default export for Expo Router
 export default function ViroARScreenRoute() {
   return (
     <>
