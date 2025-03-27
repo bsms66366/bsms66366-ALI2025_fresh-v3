@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ActivityIndicator, Image } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, Image } from 'react-native';
 import {
   ViroARScene,
   ViroARSceneNavigator,
@@ -278,22 +278,19 @@ const MarkerARScreen = () => {
         
         // Only set these handlers if they're not already set
         if (!(global as any).modelLoadingState.setLoadingError) {
-          (global as any).modelLoadingState.setLoadingError = setLoadingError;
+          (global as any).modelLoadingState.setLoadingError = (error: string | null) => setLoadingError(error);
         }
         
         if (!(global as any).modelLoadingState.setIsLoading) {
-          (global as any).modelLoadingState.setIsLoading = (isLoading: boolean) => {
-            console.log('Model loading state:', isLoading ? 'loading' : 'loaded');
-            setLoading(isLoading);
-          };
+          (global as any).modelLoadingState.setIsLoading = (isLoading: boolean) => setLoading(isLoading);
         }
         
         if (!(global as any).modelLoadingState.setMarkerFound) {
-          (global as any).modelLoadingState.setMarkerFound = setMarkerFound;
+          (global as any).modelLoadingState.setMarkerFound = (markerFound: boolean) => setMarkerFound(markerFound);
         }
         
         if (!(global as any).modelLoadingState.setModelLoaded) {
-          (global as any).modelLoadingState.setModelLoaded = setModelLoaded;
+          (global as any).modelLoadingState.setModelLoaded = (modelLoaded: boolean) => setModelLoaded(modelLoaded);
         }
         
         setLoading(false);
@@ -313,6 +310,16 @@ const MarkerARScreen = () => {
     
     // Cleanup function
     return () => {
+      // Clear all animation frames and timers
+      const animationFrameIds = Object.keys(window).filter(key => key.startsWith('__reactIdleCallback'));
+      animationFrameIds.forEach(id => {
+        const numId = Number(id.replace('__reactIdleCallback', ''));
+        if (!isNaN(numId)) {
+          cancelAnimationFrame(numId);
+        }
+      });
+      
+      // Clear global handlers
       if ((global as any).modelLoadingState) {
         (global as any).modelLoadingState.setLoadingError = undefined;
         (global as any).modelLoadingState.setIsLoading = undefined;
@@ -387,7 +394,6 @@ const MarkerARScreen = () => {
     <View style={styles.container}>
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#ffffff" />
           <Text style={styles.loadingText}>Loading 3D model...</Text>
         </View>
       ) : loadingError ? (

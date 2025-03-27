@@ -1,14 +1,14 @@
+import React, { useRef, useState, useEffect } from "react";
 import {
   CameraMode,
   CameraType,
   CameraView,
   useCameraPermissions,
 } from "expo-camera";
-import { useRef, useState, useEffect } from "react";
 import { Button, Pressable, StyleSheet, Text, View, Image, Animated } from "react-native";
 import { AntDesign } from "@expo/vector-icons";
 import { Feather } from "@expo/vector-icons";
-import { FontAwesome6 } from "@expo/vector-icons";
+import { FontAwesome } from "@expo/vector-icons"; 
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -289,7 +289,7 @@ export default function QRScannerScreen() {
                 style={styles.backButton} 
                 onPress={() => router.push("/viro-ar")}
               >
-                <FontAwesome6 name="arrow-left" size={24} color="white" />
+                <FontAwesome name="arrow-left" size={24} color="white" />
                 <Text style={styles.backButtonText}>Back to AR</Text>
               </Pressable>
               
@@ -333,7 +333,7 @@ export default function QRScannerScreen() {
               )}
             </Pressable>
             <Pressable onPress={toggleFacing}>
-              <FontAwesome6 name="rotate-left" size={32} color="white" />
+              <FontAwesome name="rotate-left" size={32} color="white" />
             </Pressable>
             
             <Pressable 

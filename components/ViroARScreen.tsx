@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import {
   ViroARScene,
   ViroARSceneNavigator,
@@ -352,7 +352,20 @@ const ViroARScreen = () => {
     
     // Cleanup function
     return () => {
-      global.modelLoadingState.setLoadingError = undefined;
+      // Clear all animation frames and timers
+      const animationFrameIds = Object.keys(window).filter(key => key.startsWith('__reactIdleCallback'));
+      animationFrameIds.forEach(id => {
+        const numId = Number(id.replace('__reactIdleCallback', ''));
+        if (!isNaN(numId)) {
+          cancelAnimationFrame(numId);
+        }
+      });
+      
+      // Clear global state handlers
+      if (global.modelLoadingState) {
+        global.modelLoadingState.setLoadingError = undefined;
+        global.modelLoadingState.setIsLoading = undefined;
+      }
     };
   }, []);
 
