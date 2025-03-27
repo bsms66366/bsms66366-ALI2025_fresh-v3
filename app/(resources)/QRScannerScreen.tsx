@@ -1,97 +1,50 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, ActivityIndicator, Alert, Vibration } from 'react-native';
-import { Camera } from 'expo-camera';
-import { router } from 'expo-router';
+import React, { useRef, useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, Pressable, Animated } from 'react-native';
+import { Stack, router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Linking from 'expo-linking';
+import { BarCodeScanner } from 'expo-barcode-scanner';
+import { FontAwesome6 } from "@expo/vector-icons";
 
 const QRScannerScreen = () => {
-  const [hasCameraPermission, setCameraPermission] = useState<boolean | null>(null);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showSimulatedScan, setShowSimulatedScan] = useState(false);
-
+  const [progress] = useState(new Animated.Value(0));
+  
+  // Request camera permissions
   useEffect(() => {
-    const requestPermissions = async () => {
-      try {
-        const { status } = await Camera.requestCameraPermissionsAsync();
-        setCameraPermission(status === 'granted');
-        
-        // If we're in development mode or having camera issues, enable simulated scanning
-        if (__DEV__ || status !== 'granted') {
-          setShowSimulatedScan(true);
-        }
-      } catch (err) {
-        console.error("Error requesting camera permissions:", err);
-        setCameraPermission(false);
-        setShowSimulatedScan(true);
-      }
+    const getBarCodeScannerPermissions = async () => {
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      setHasPermission(status === 'granted');
     };
 
-    requestPermissions();
+    getBarCodeScannerPermissions();
   }, []);
 
+  // Animation for progress bar
   useEffect(() => {
-    if (hasCameraPermission === false) {
-      Alert.alert(
-        "Camera Permissions Required",
-        "You must grant access to your camera to scan QR codes. You can still use the simulated scan feature.",
-        [
-          { text: "Go to settings", onPress: goToSettings },
-          {
-            text: "Continue with simulation",
-            onPress: () => {
-              setShowSimulatedScan(true);
-            },
-          },
-        ]
-      );
+    if (loading) {
+      // Reset progress
+      progress.setValue(0);
+      
+      // Animate progress over 1 second
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: false
+      }).start();
     }
-  }, [hasCameraPermission]);
+  }, [loading, progress]);
 
-  const goToSettings = () => {
-    Linking.openSettings();
-  };
-
-  const processModelUrl = async (modelUri: string) => {
+  const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
+    if (scanned || loading) return;
+    
+    setScanned(true);
+    setLoading(true);
+    
+    console.log(`Bar code with type ${type} and data ${data} has been scanned!`);
+    
     try {
-      setLoading(true);
-      
-      await AsyncStorage.setItem('currentModelUri', modelUri);
-      
-      // Create a simple metadata object
-      const metadata = {
-        name: 'QR Scanned Model',
-        description: 'Model loaded from QR code',
-        source: 'qr_scan'
-      };
-      
-      await AsyncStorage.setItem('currentModelMetadata', JSON.stringify(metadata));
-      
-      // Navigate to the AR view after a short delay
-      setTimeout(() => {
-        setLoading(false);
-        router.push("/marker-ar");
-      }, 1000);
-    } catch (err) {
-      console.error('Error saving model data:', err);
-      setError('Error saving model data. Please try again.');
-      setLoading(false);
-      setScanned(false);
-    }
-  };
-
-  const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
-    try {
-      if (scanned) return;
-      
-      Vibration.vibrate();
-      setScanned(true);
-      setError(null);
-      
-      console.log(`Bar code with type ${type} and data ${data} has been scanned!`);
-      
       // Check if the QR code contains valid model data
       if (data.startsWith('http') && (data.endsWith('.glb') || data.endsWith('.gltf') || data.includes('model='))) {
         // Extract model URI from the QR code data
@@ -99,48 +52,54 @@ const QRScannerScreen = () => {
         
         // If the QR code contains a URL with a model parameter, extract it
         if (data.includes('model=')) {
-          const url = new URL(data);
-          const modelParam = url.searchParams.get('model');
-          if (modelParam) {
-            modelUri = modelParam;
+          try {
+            const url = new URL(data);
+            const modelParam = url.searchParams.get('model');
+            if (modelParam) {
+              modelUri = modelParam;
+            }
+          } catch (urlError) {
+            console.error('Error parsing URL:', urlError);
+            // Continue with the original data if URL parsing fails
           }
         }
         
-        processModelUrl(modelUri);
+        // Store the model URI for use in the AR screen
+        await AsyncStorage.setItem('currentModelUri', modelUri);
+        
+        // Create a simple metadata object
+        const metadata = {
+          name: 'QR Scanned Model',
+          description: 'Model loaded from QR code',
+          source: 'qr_scan'
+        };
+        
+        await AsyncStorage.setItem('currentModelMetadata', JSON.stringify(metadata));
+        
+        // Navigate to the AR view after a short delay
+        setTimeout(() => {
+          setLoading(false);
+          router.push("/marker-ar");
+        }, 1000);
       } else {
         // If the QR code doesn't contain valid model data
-        setError('Invalid QR code. Please scan a QR code that contains a 3D model URL.');
-        setLoading(false);
-        setScanned(false);
+        Alert.alert(
+          "Invalid QR Code",
+          "Please scan a QR code that contains a 3D model URL.",
+          [{ text: "OK", onPress: () => { setScanned(false); setLoading(false); } }]
+        );
       }
     } catch (err) {
       console.error('Error processing QR code:', err);
-      setError('Error processing QR code. Please try again.');
-      setLoading(false);
-      setScanned(false);
+      Alert.alert(
+        "Error",
+        "Error processing QR code. Please try again.",
+        [{ text: "OK", onPress: () => { setScanned(false); setLoading(false); } }]
+      );
     }
   };
 
-  // For testing purposes - simulates scanning a valid QR code
-  const simulateScan = () => {
-    // Example model URLs - you can replace these with your actual model URLs
-    const testModelUrls = [
-      'https://example.com/model1.glb',
-      'https://example.com/model2.glb',
-      'https://example.com/model3.glb'
-    ];
-    
-    // Select a random model URL
-    const randomIndex = Math.floor(Math.random() * testModelUrls.length);
-    const testModelUrl = testModelUrls[randomIndex];
-    
-    Vibration.vibrate();
-    setScanned(true);
-    setError(null);
-    processModelUrl(testModelUrl);
-  };
-
-  if (hasCameraPermission === null && !showSimulatedScan) {
+  if (hasPermission === null) {
     return (
       <View style={styles.container}>
         <Text style={styles.text}>Requesting camera permission...</Text>
@@ -148,48 +107,60 @@ const QRScannerScreen = () => {
     );
   }
 
+  if (hasPermission === false) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>
+          We need your permission to use the camera to scan QR codes
+        </Text>
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.buttonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* Dark background */}
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'black' }]} />
+      <BarCodeScanner
+        onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+        style={StyleSheet.absoluteFillObject}
+      />
       
       {/* Overlay with scan area indicator */}
       <View style={styles.overlay}>
         <View style={styles.scanArea} />
         <Text style={styles.instructions}>
-          {showSimulatedScan 
-            ? "Use the buttons below to simulate scanning a QR code" 
-            : "Position QR code in the square"}
+          Position QR code in the square
         </Text>
       </View>
       
-      {/* Loading indicator */}
+      {/* Loading indicator with progress bar */}
       {loading && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#bcba40" />
+          <View style={styles.progressBarContainer}>
+            <Animated.View 
+              style={[
+                styles.progressBar,
+                {
+                  width: progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%']
+                  })
+                }
+              ]} 
+            />
+          </View>
           <Text style={styles.loadingText}>Loading 3D model...</Text>
-        </View>
-      )}
-      
-      {/* Error message */}
-      {error && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
       
       {/* Controls */}
       <View style={styles.controlsContainer}>
-        {showSimulatedScan && !loading && (
-          <TouchableOpacity 
-            style={styles.controlButton}
-            onPress={simulateScan}
-          >
-            <Text style={styles.buttonText}>Simulate QR Scan</Text>
-          </TouchableOpacity>
-        )}
-        
-        {scanned && !loading && !showSimulatedScan && (
+        {scanned && !loading && (
           <TouchableOpacity 
             style={styles.controlButton}
             onPress={() => setScanned(false)}
@@ -205,26 +176,16 @@ const QRScannerScreen = () => {
           <Text style={styles.buttonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
-      
-      {/* Message about QR scanning */}
-      {showSimulatedScan && (
-        <View style={styles.messageContainer}>
-          <Text style={styles.messageText}>
-            QR code scanning simulation mode is active. This is perfect for users with latex gloves.
-          </Text>
-        </View>
-      )}
     </View>
   );
 };
-
-const { width } = Dimensions.get('window');
-const scanAreaSize = width * 0.7;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'black',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -232,8 +193,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scanArea: {
-    width: scanAreaSize,
-    height: scanAreaSize,
+    width: 250,
+    height: 250,
     borderWidth: 2,
     borderColor: '#bcba40',
     borderRadius: 10,
@@ -246,6 +207,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.7)',
     padding: 10,
     borderRadius: 5,
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+  progressBarContainer: {
+    width: '80%',
+    height: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#bcba40',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 18,
+    marginTop: 10,
   },
   controlsContainer: {
     position: 'absolute',
@@ -267,63 +255,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.8)',
-  },
-  loadingText: {
-    color: 'white',
-    fontSize: 18,
-    marginTop: 10,
-  },
-  errorContainer: {
-    position: 'absolute',
-    bottom: 100,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(255,0,0,0.7)',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  errorText: {
-    color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
-  },
   text: {
     color: 'white',
     fontSize: 18,
     textAlign: 'center',
     margin: 20,
   },
-  messageContainer: {
-    position: 'absolute',
-    top: '40%',
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+  button: {
+    backgroundColor: '#bcba40',
     padding: 15,
     borderRadius: 10,
+    margin: 20,
     alignItems: 'center',
-  },
-  messageText: {
-    color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 10,
   },
 });
 
 // This is the default export for Expo Router
-export default function Page() {
-  return <QRScannerScreen />;
+export default function ScannerRoute() {
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          title: 'QR Code Scanner',
+          headerShown: true,
+        }}
+      />
+      <QRScannerScreen />
+    </>
+  );
 }
-
-export { QRScannerScreen };

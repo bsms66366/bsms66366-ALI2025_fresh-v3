@@ -383,7 +383,7 @@ const MarkerARScreen = () => {
       <View style={styles.controlsContainer}>
         <TouchableOpacity 
           style={styles.controlButton}
-          onPress={() => router.push("/(tabs)/scanner")}
+          onPress={() => router.push("/qr-scanner")}
         >
           <Text style={styles.buttonText}>Scan QR Code</Text>
         </TouchableOpacity>
@@ -397,7 +397,7 @@ const MarkerARScreen = () => {
         
         <TouchableOpacity 
           style={styles.controlButton}
-          onPress={() => router.push("/(tabs)/scanner")}
+          onPress={() => router.push("/qr-scanner")}
         >
           <Text style={styles.buttonText}>QR Scanner</Text>
         </TouchableOpacity>
