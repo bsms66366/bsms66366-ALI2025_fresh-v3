@@ -79,70 +79,12 @@ const ARScene = (props: ViroSceneProps) => {
   useEffect(() => {
     if (materialsInitialized.current) return;
     
-    try {
-      // Create dynamic materials based on anatomical parts
-      const materials: Record<string, any> = {};
-      
-      // Create a material for each anatomical part
-      anatomicalParts.forEach((part, index) => {
-        materials[`material_${index}`] = {
-          diffuseColor: part.color,
-          lightingModel: "Blinn",
-          shininess: part.name.includes('Cartilage') ? 1.0 : 
-                    part.name.includes('Ligament') ? 0.3 : 0.5,
-        };
-      });
-      
-      // Add default material
-      materials.defaultMaterial = {
-        diffuseColor: '#F0F0F0',
-        lightingModel: "Blinn",
-        shininess: 0.5
-      };
-      
-      // Create all the materials - wrap in try/catch to handle potential errors
-      try {
-        if (ViroMaterials && typeof ViroMaterials.createMaterials === 'function') {
-          ViroMaterials.createMaterials(materials);
-          console.log("Materials initialized successfully");
-        } else {
-          console.warn("ViroMaterials not available or createMaterials is not a function");
-        }
-      } catch (materialError) {
-        console.warn("Error creating Viro materials:", materialError);
-      }
-
-      // Define animations - wrap in try/catch to handle potential errors
-      try {
-        if (ViroAnimations && typeof ViroAnimations.registerAnimations === 'function') {
-          ViroAnimations.registerAnimations({
-            rotate: {
-              properties: {
-                rotateY: "+=360"
-              },
-              duration: 10000, // 10 seconds for a full rotation
-            },
-            loopRotate: {
-              properties: {
-                rotateY: "+=360"
-              },
-              duration: 10000,
-              easing: "Linear",
-            }
-          });
-          console.log("Animations registered successfully");
-        } else {
-          console.warn("ViroAnimations not available or registerAnimations is not a function");
-        }
-      } catch (animationError) {
-        console.warn("Error registering Viro animations:", animationError);
-      }
-      
-      materialsInitialized.current = true;
-      console.log("Materials and animations initialization completed");
-    } catch (error) {
-      console.warn('Error initializing Viro materials or animations:', error);
-    }
+    // We'll defer material initialization until we're sure ViroMaterials is available
+    // This will be checked again in onObjectLoaded
+    console.log("Material initialization deferred until model loads");
+    
+    // Mark as initialized to prevent repeated attempts
+    materialsInitialized.current = true;
   }, []);
 
   // Manual animation implementation
@@ -199,21 +141,66 @@ const ARScene = (props: ViroSceneProps) => {
       global.modelLoadingState.setIsLoading(false);
     }
     
-    // Apply custom material handling
+    // Initialize and apply materials now that the model is loaded
     try {
-      console.log("Model loaded - applying materials based on mesh indices");
+      // Create dynamic materials based on anatomical parts
+      if (ViroMaterials && typeof ViroMaterials.createMaterials === 'function') {
+        console.log("Model loaded - initializing materials");
+        
+        const materials: Record<string, any> = {};
+        
+        // Create a material for each anatomical part
+        anatomicalParts.forEach((part, index) => {
+          materials[`material_${index}`] = {
+            diffuseColor: part.color,
+            lightingModel: "Blinn",
+            shininess: part.name.includes('Cartilage') ? 1.0 : 
+                      part.name.includes('Ligament') ? 0.3 : 0.5,
+          };
+        });
+        
+        // Add default material
+        materials.defaultMaterial = {
+          diffuseColor: '#F0F0F0',
+          lightingModel: "Blinn",
+          shininess: 0.5
+        };
+        
+        // Create all the materials now that the model is loaded
+        ViroMaterials.createMaterials(materials);
+        console.log("Materials initialized successfully after model load");
+        
+        // Log success message for debugging
+        console.log("Materials applied to model via materials property");
+        console.log("Material mapping: ", anatomicalParts.map((part, i) => 
+          `${part.name} -> material_${i} (${part.color})`).join(', '));
+      } else {
+        console.warn("ViroMaterials not available or createMaterials is not a function");
+      }
       
-      // In ViroReact, we can't directly access the mesh materials after loading
-      // Instead, we rely on the materials property of Viro3DObject to apply materials
-      // The materials are applied based on the order they appear in the GLB file
-      
-      // Log success message for debugging
-      console.log("Materials applied to model via materials property");
-      console.log("If colors are still missing, check the console logs for more details");
-      console.log("Material mapping: ", anatomicalParts.map((part, i) => 
-        `${part.name} -> material_${i} (${part.color})`).join(', '));
+      // Register animations after model is loaded
+      if (ViroAnimations && typeof ViroAnimations.registerAnimations === 'function') {
+        ViroAnimations.registerAnimations({
+          rotate: {
+            properties: {
+              rotateY: "+=360"
+            },
+            duration: 10000, // 10 seconds for a full rotation
+          },
+          loopRotate: {
+            properties: {
+              rotateY: "+=360"
+            },
+            duration: 10000,
+            easing: "Linear",
+          }
+        });
+        console.log("Animations registered successfully after model load");
+      } else {
+        console.warn("ViroAnimations not available or registerAnimations is not a function");
+      }
     } catch (error) {
-      console.error("Error applying materials:", error);
+      console.error("Error applying materials or registering animations:", error);
     }
   };
   
@@ -313,6 +300,8 @@ const ViroARScreen = () => {
   const [modelUri, setModelUri] = useState('');
   const [modelMetadata, setModelMetadata] = useState<any>(null);
   const [loadingError, setLoadingError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [modelLoaded, setModelLoaded] = useState(false);
 
   useEffect(() => {
     const getModelUri = async () => {
@@ -342,6 +331,7 @@ const ViroARScreen = () => {
         
         // Share state setters with global scope for ARScene to access
         global.modelLoadingState.setLoadingError = setLoadingError;
+        global.modelLoadingState.setIsLoading = setIsLoading;
         
       } catch (error) {
         console.error('Error getting model URI from storage:', error);
@@ -377,6 +367,13 @@ const ViroARScreen = () => {
     
     return () => clearTimeout(timer);
   }, []);
+
+  // Handle model loaded event
+  useEffect(() => {
+    if (!isLoading && !loadingError) {
+      setModelLoaded(true);
+    }
+  }, [isLoading, loadingError]);
 
   // Check if we're on a real device that can support AR
   const isRealDevice = Platform.OS !== 'web' && !Platform.isTV;
@@ -424,27 +421,31 @@ const ViroARScreen = () => {
             <ARSceneWrapper modelUri={modelUri} />
             
             {/* Overlay message while model loads */}
-            <View style={styles.messageOverlay}>
-              <Text style={styles.messageText}>
-                {modelMetadata?.name ? `Loading ${modelMetadata.name}...` : 'Loading 3D model...'}
-              </Text>
-              <Text style={styles.messageSubtext}>Please be patient while the model loads</Text>
-              {loadingError && (
-                <Text style={styles.loadingErrorText}>{loadingError}</Text>
-              )}
-            </View>
+            {isLoading && (
+              <View style={styles.messageOverlay}>
+                <Text style={styles.messageText}>
+                  {modelMetadata?.name ? `Loading ${modelMetadata.name}...` : 'Loading 3D model...'}
+                </Text>
+                <Text style={styles.messageSubtext}>Please be patient while the model loads</Text>
+                {loadingError && (
+                  <Text style={styles.loadingErrorText}>{loadingError}</Text>
+                )}
+              </View>
+            )}
+            
+            {/* Instructions overlay - shown briefly when model is loaded */}
+            {modelLoaded && showInstructions && (
+              <View style={styles.instructionsContainer}>
+                <Text style={styles.instructionsText}>
+                  Use the controls below to interact with the 3D model.
+                </Text>
+              </View>
+            )}
           </>
         )}
         
         {/* Controls */}
         <View style={styles.controlsContainer}>
-         {/*  <TouchableOpacity 
-            style={styles.controlButton}
-            onPress={() => setShowLabels(!showLabels)}
-          >
-            <Text style={styles.buttonText}>{showLabels ? 'Hide Labels' : 'Show Labels'}</Text>
-          </TouchableOpacity> */}
-          
           <TouchableOpacity 
             style={styles.controlButton}
             onPress={() => setIsAnimating(!isAnimating)}

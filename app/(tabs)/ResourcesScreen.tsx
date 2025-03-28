@@ -47,12 +47,12 @@ export default function ResourcesScreen() {
         </View>
   
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/marker-ar")}>
+        <Pressable onPress={() => WebBrowser.openBrowserAsync('https://www.spatial.io/s/BSMS-Anatomy-Department-Metaverse-63f1222446f222d934f1f54c?share=4830808449733533739')}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard39.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
             />
-            <Text style={styles.titleText}>Marker AR</Text>
+            <Text style={styles.titleText}>Anatomy Metaverse</Text>
           </Pressable>
         </View>
       </View>
@@ -60,7 +60,7 @@ export default function ResourcesScreen() {
       {/* Second Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/(resources)/ModelFetchScreen")}>
+          <Pressable onPress={() => router.push("/unified-ar")}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard39.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 
