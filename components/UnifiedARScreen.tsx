@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, Dimensions, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
+import { Camera, CameraView, CameraType } from 'expo-camera';
+import type { BarcodeScanningResult } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import { ViroARScene, ViroARSceneNavigator, ViroMaterials, ViroAmbientLight, ViroSpotLight, ViroNode, Viro3DObject } from '@reactvision/react-viro';
@@ -14,7 +16,7 @@ declare global {
   };
 }
 
-// Simplified QR Scanner Component
+// QR Scanner Component
 const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) => void }) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -22,6 +24,7 @@ const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) 
   const [error, setError] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const lastScanTime = useRef(0);
+  const cameraRef = useRef<CameraView>(null);
 
   useEffect(() => {
     const getPermissions = async () => {
@@ -33,56 +36,77 @@ const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) 
     getPermissions();
   }, [permission, requestPermission]);
 
-  const handleBarCodeScanned = useCallback((scanningResult: BarcodeScanningResult) => {
-    if (scanned || loading) return;
+  const handleCapture = useCallback(async () => {
+    if (scanned || loading || !cameraRef.current) return;
     
-    // Prevent multiple scans within 2 seconds
+    // Prevent multiple captures within 2 seconds
     const now = Date.now();
     if (now - lastScanTime.current < 2000) return;
     lastScanTime.current = now;
     
-    const processQRCode = async () => {
-      try {
-        setScanned(true);
-        setLoading(true);
-        setError(null);
-        setDownloadProgress(0);
-        
-        const { data, type } = scanningResult;
-        console.log('QR code scanned:', { data, type });
-        
-        // Simple validation - ensure it's a HTTPS URL
-        if (!data.startsWith('https://')) {
-          throw new Error('Invalid QR code. Please scan a QR code with a valid HTTPS URL.');
-        }
-        
-        // Extract model URL from QR code
-        const modelUrl = data.trim();
-        
-        // Prepare model (download if needed)
-        const preparedUri = await validateAndPrepareModel(modelUrl, (progress) => {
-          setDownloadProgress(progress);
-        });
-        
-        // Save to AsyncStorage
-        await AsyncStorage.setItem('currentModelUri', preparedUri);
-        console.log('Saved model URI to AsyncStorage:', preparedUri);
-        
-        // Notify parent component with a small delay for smooth transition
-        setTimeout(() => {
-          onModelScanned(preparedUri);
-        }, 500);
-      } catch (error) {
-        console.error('Error processing QR code:', error);
-        setError(error instanceof Error ? error.message : 'Failed to process QR code');
-        setScanned(false);
-      } finally {
-        setLoading(false);
-      }
-    };
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Take a picture
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.8,
+        base64: false,
+      });
 
-    processQRCode();
+      if (!photo?.uri) {
+        throw new Error('Failed to capture image');
+      }
+      
+      // Scan the image for QR codes
+      const results = await Camera.scanFromURLAsync(photo.uri, ['qr']);
+      
+      if (results.length === 0) {
+        throw new Error('No QR code found in image. Please try again.');
+      }
+      
+      // Process the first QR code found
+      const { data } = results[0];
+      console.log('QR code scanned:', data);
+      
+      setScanned(true);
+      
+      // Simple validation - ensure it's a HTTPS URL
+      if (!data.startsWith('https://')) {
+        throw new Error('Invalid QR code. Please scan a QR code with a valid HTTPS URL.');
+      }
+      
+      // Extract model URL from QR code
+      const modelUrl = data.trim();
+      
+      setDownloadProgress(0);
+      // Prepare model (download if needed)
+      const preparedUri = await validateAndPrepareModel(modelUrl, (progress) => {
+        setDownloadProgress(progress);
+      });
+      
+      // Save to AsyncStorage
+      await AsyncStorage.setItem('currentModelUri', preparedUri);
+      console.log('Saved model URI to AsyncStorage:', preparedUri);
+      
+      // Notify parent component with a small delay for smooth transition
+      setTimeout(() => {
+        onModelScanned(preparedUri);
+      }, 500);
+    } catch (error) {
+      console.error('Error processing QR code:', error);
+      setError(error instanceof Error ? error.message : 'Failed to process QR code');
+      // Keep scanned state true to prevent auto-retrying
+    } finally {
+      setLoading(false);
+    }
   }, [scanned, loading, onModelScanned]);
+
+  const handleScanAgain = useCallback(() => {
+    setScanned(false);
+    setError(null);
+    setDownloadProgress(0);
+  }, []);
 
   // Validate and potentially download the model
   const validateAndPrepareModel = async (uri: string, progressCallback?: (progress: number) => void): Promise<string> => {
@@ -197,12 +221,9 @@ const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) 
       ) : (
         <>
           <CameraView
+            ref={cameraRef}
             style={StyleSheet.absoluteFillObject}
             facing="back"
-            barcodeScannerSettings={{
-              barcodeTypes: ["qr"],
-            }}
-            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
           >
             <View style={styles.scannerOverlay}>
               <View style={styles.scannerMarker} />
@@ -211,15 +232,24 @@ const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) 
             <View style={styles.scannerTextContainer}>
               <Text style={styles.scannerTitle}>Scan QR Code</Text>
               <Text style={styles.scannerInstructions}>
-                Position the QR code in the center of the screen
+                Position the QR code in the center of the screen and tap the scan button
               </Text>
               {error && <Text style={styles.errorText}>{error}</Text>}
             </View>
             
+            {!scanned && !loading && (
+              <TouchableOpacity
+                style={styles.captureButton}
+                onPress={handleCapture}
+              >
+                <Ionicons name="scan-circle" size={64} color="#bcba40" />
+              </TouchableOpacity>
+            )}
+            
             {scanned && (
               <TouchableOpacity
                 style={styles.scanAgainButton}
-                onPress={() => setScanned(false)}
+                onPress={handleScanAgain}
               >
                 <Text style={styles.scanAgainButtonText}>Tap to Scan Again</Text>
               </TouchableOpacity>
@@ -622,6 +652,12 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 25,
     zIndex: 10,
+  },
+  captureButton: {
+    position: 'absolute',
+    bottom: 32,
+    alignSelf: 'center',
+    padding: 16,
   },
 });
 
