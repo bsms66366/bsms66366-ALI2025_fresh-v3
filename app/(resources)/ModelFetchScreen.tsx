@@ -196,7 +196,7 @@ const ModelFetchScreen = () => {
     const storeModelUri = async () => {
       try {
         await AsyncStorage.setItem('currentModelUri', modelUri);
-        router.push("/viro-ar");
+        router.push("/unified-ar");
       } catch (error) {
         console.error('Error storing model URI:', error);
         Alert.alert('Error', 'Failed to prepare model for AR view');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext, useCallback } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, Animated, Image } from 'react-native';
 import {
   ViroARScene,
@@ -21,7 +21,7 @@ import { AntDesign, FontAwesome } from "@expo/vector-icons";
 import { Asset } from 'expo-asset';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import * as FileSystem from 'expo-file-system';
 import { Easing } from 'react-native';
 
 // Declare global interface to add our custom properties
@@ -52,213 +52,83 @@ type ViroSceneProps = {
   };
 };
 
-// The AR Scene component
-const ARScene = (props: ViroSceneProps) => {
-  const { isAnimating } = useContext(AnimationContext);
-  const [modelRotation, setModelRotation] = useState<[number, number, number]>([0, 0, 0]);
+// AR Scene component - simplified version
+const ARScene = (props: any) => {
+  const [modelRotation] = useState<[number, number, number]>([0, 0, 0]);
   const [modelScale] = useState<[number, number, number]>([0.05, 0.05, 0.05]);
-  const materialsInitialized = useRef(false);
-  const modelRef = useRef<any>(null);
-  const animationRef = useRef<number | null>(null);
-  const lastUpdateTimeRef = useRef<number>(Date.now());
+  const [modelLoaded, setModelLoaded] = useState(false);
+  const modelUri = props.arSceneNavigator?.viroAppProps?.modelUri || '';
   
-  // Anatomical colors and labels mapping
-  const anatomicalParts = [
-    { name: 'Vocalis Muscle', color: '#8B0000' },
-    { name: 'Lateral Cricoarytenoid Muscle', color: '#A52A2A' },
-    { name: 'Posterior Cricoarytenoid Muscle', color: '#CD5C5C' },
-    { name: 'Thyroid Cartilage', color: '#E8E8E8' },
-    { name: 'Cricoid Cartilage', color: '#DCDCDC' },
-    { name: 'Arytenoid Cartilages', color: '#D3D3D3' },
-    { name: 'Cricothyroid Ligament', color: '#FFE4B5' },
-    { name: 'Vocal Ligament', color: '#DEB887' },
-    { name: 'Mucosa', color: '#FFB6C1' },
-  ];
-
-  const getAnatomicalColor = (index: number): string => {
-    console.log('[Debug] Getting color for mesh index:', index);
-    // Convert Object_X to index by extracting the number and dividing by 2
-    const colorIndex = Math.floor(index / 2) - 1;
-    const part = anatomicalParts[colorIndex] || { color: '#F0F0F0' };
-    console.log('[Debug] Using color index', colorIndex, ':', part.color);
-    return part.color;
+  // Safe material creation function
+  const safeCreateMaterials = useCallback(() => {
+    if (!modelLoaded) return;
+    
+    console.log('Model loaded, initializing materials');
+    
+    // Check if ViroMaterials is available
+    if (typeof ViroMaterials !== 'undefined' && ViroMaterials !== null) {
+      try {
+        // Use a timeout to ensure ViroMaterials is fully initialized
+        const timeoutId = setTimeout(() => {
+          try {
+            // Create a simple material set for testing
+            ViroMaterials.createMaterials({
+              defaultMaterial: {
+                lightingModel: "Blinn",
+                diffuseColor: '#FFFFFF',
+                shininess: 0.5,
+              }
+            });
+            console.log('Materials created successfully');
+          } catch (error) {
+            console.error('Error creating materials:', error);
+          }
+        }, 500);
+        
+        // Cleanup function to prevent memory leaks
+        return () => clearTimeout(timeoutId);
+      } catch (error) {
+        console.error('Error in safeCreateMaterials:', error);
+      }
+    } else {
+      console.warn('ViroMaterials not available yet');
+    }
+  }, [modelLoaded]);
+  
+  // Initialize materials after model is loaded
+  useEffect(() => {
+    if (modelLoaded) {
+      safeCreateMaterials();
+    }
+  }, [modelLoaded, safeCreateMaterials]);
+  
+  // Handle model load events
+  const onLoadStart = () => {
+    console.log('Model load started');
+    setModelLoaded(false);
+    if (global.modelLoadingState?.setIsLoading) {
+      global.modelLoadingState.setIsLoading(true);
+    }
   };
   
-  // Initialize materials in the component
-  useEffect(() => {
-    if (materialsInitialized.current) return;
-    
-    // We'll defer material initialization until we're sure ViroMaterials is available
-    // This will be checked again in onObjectLoaded
-    console.log("Material initialization deferred until model loads");
-    
-    // Mark as initialized to prevent repeated attempts
-    materialsInitialized.current = true;
-
-    // Add a small delay to ensure ViroMaterials is initialized
-    setTimeout(() => {
-      try {
-        if (ViroMaterials && typeof ViroMaterials.createMaterials === 'function') {
-          console.log("Initializing default materials");
-          ViroMaterials.createMaterials({
-            defaultMaterial: {
-              diffuseColor: '#F0F0F0',
-              lightingModel: "Blinn",
-              shininess: 0.5
-            }
-          });
-        }
-      } catch (error) {
-        console.log("Error initializing default materials:", error);
-      }
-    }, 1000);
-  }, []);
-  
-  // Manual animation implementation
-  useEffect(() => {
-    // Animation function for smooth rotation
-    const animateModel = () => {
-      const currentTime = Date.now();
-      const deltaTime = currentTime - lastUpdateTimeRef.current;
-      lastUpdateTimeRef.current = currentTime;
-      
-      // Calculate rotation increment (complete rotation in 10 seconds)
-      const rotationSpeed = (360 / 10000) * deltaTime; // degrees per millisecond
-      
-      // Update the model rotation directly through state
-      setModelRotation(prevRotation => {
-        const newYRotation = (prevRotation[1] + rotationSpeed) % 360;
-        return [prevRotation[0], newYRotation, prevRotation[2]];
-      });
-      
-      // Continue animation loop if still animating
-      if (isAnimating) {
-        animationRef.current = requestAnimationFrame(animateModel);
-      }
-    };
-    
-    // Start animation if enabled
-    if (isAnimating) {
-      console.log("Starting manual rotation animation");
-      lastUpdateTimeRef.current = Date.now();
-      animationRef.current = requestAnimationFrame(animateModel);
-    } else {
-      // If animation is disabled and we have an active animation frame, cancel it
-      if (animationRef.current !== null) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-    }
-    
-    // Cleanup function to cancel animation when component unmounts
-    return () => {
-      if (animationRef.current !== null) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-    };
-  }, [isAnimating]);
-  
-  // Handle object loaded event
-  const onObjectLoaded = () => {
-    console.log("3D Model loaded successfully");
-    
-    // Signal to parent component that loading is complete
-    if (global.modelLoadingState.setIsLoading) {
+  const onLoadEnd = () => {
+    console.log('Model load completed');
+    setModelLoaded(true);
+    if (global.modelLoadingState?.setIsLoading) {
       global.modelLoadingState.setIsLoading(false);
     }
-    
-    // Initialize and apply materials now that the model is loaded
-    try {
-      // Create dynamic materials based on anatomical parts
-      if (ViroMaterials && typeof ViroMaterials.createMaterials === 'function') {
-        console.log("Model loaded - initializing materials");
-        
-        const materials: Record<string, any> = {};
-        
-        // Create a material for each anatomical part
-        anatomicalParts.forEach((part, index) => {
-          materials[`material_${index}`] = {
-            diffuseColor: part.color,
-            lightingModel: "Blinn",
-            shininess: part.name.includes('Cartilage') ? 1.0 : 
-                      part.name.includes('Ligament') ? 0.3 : 0.5,
-          };
-        });
-        
-        // Add default material
-        materials.defaultMaterial = {
-          diffuseColor: '#F0F0F0',
-          lightingModel: "Blinn",
-          shininess: 0.5
-        };
-        
-        // Create all the materials now that the model is loaded
-        ViroMaterials.createMaterials(materials);
-        console.log("Materials initialized successfully after model load");
-        
-        // Log success message for debugging
-        console.log("Materials applied to model via materials property");
-        console.log("Material mapping: ", anatomicalParts.map((part, i) => 
-          `${part.name} -> material_${i} (${part.color})`).join(', '));
-      } else {
-        console.warn("ViroMaterials not available or createMaterials is not a function");
-      }
-      
-      // Register animations after model is loaded
-      if (ViroAnimations && typeof ViroAnimations.registerAnimations === 'function') {
-        ViroAnimations.registerAnimations({
-          rotate: {
-            properties: {
-              rotateY: "+=360"
-            },
-            duration: 10000, // 10 seconds for a full rotation
-          },
-          loopRotate: {
-            properties: {
-              rotateY: "+=360"
-            },
-            duration: 10000,
-            easing: "Linear",
-          }
-        });
-        console.log("Animations registered successfully after model load");
-      } else {
-        console.warn("ViroAnimations not available or registerAnimations is not a function");
-      }
-    } catch (error) {
-      console.error("Error initializing materials or animations:", error);
-    }
   };
-
-  // Handle errors
+  
   const onError = (event: any) => {
-    console.error("Error loading 3D model:", event.nativeEvent.error);
-    if (global.modelLoadingState.setLoadingError) {
-      global.modelLoadingState.setLoadingError(`Error loading 3D model: ${event.nativeEvent.error}`);
+    console.error('Error loading model:', event);
+    if (global.modelLoadingState?.setLoadingError) {
+      global.modelLoadingState.setLoadingError('Failed to load 3D model');
     }
   };
 
   return (
     <ViroARScene>
-      {/* Basic ambient light for overall scene illumination */}
-      <ViroAmbientLight color="#ffffff" intensity={0.7} />
-      
-      {/* Primary directional light */}
-      <ViroDirectionalLight
-        color="#ffffff"
-        direction={[0, -1, -0.2]}
-        intensity={0.8}
-      />
-      
-      {/* Secondary fill light */}
-      <ViroDirectionalLight
-        color="#ffffff"
-        direction={[0, 1, -1]}
-        intensity={0.5}
-      />
-      
-      {/* Spotlight for dramatic highlighting */}
+      <ViroAmbientLight color="#ffffff" intensity={200} />
       <ViroSpotLight
         innerAngle={5}
         outerAngle={25}
@@ -266,21 +136,21 @@ const ARScene = (props: ViroSceneProps) => {
         position={[0, 3, 1]}
         color="#ffffff"
         castsShadow={true}
-        intensity={0.8}
+        shadowMapSize={2048}
+        shadowNearZ={2}
+        shadowFarZ={5}
+        shadowOpacity={0.7}
       />
       
-      {/* 3D Model Node with animation */}
-      <ViroNode rotation={modelRotation}>
+      <ViroNode position={[0, 0, 0]} dragType="FixedToWorld">
         <Viro3DObject
-          ref={modelRef}
-          source={props.sceneNavigator?.viroAppProps?.modelUri ? 
-            { uri: props.sceneNavigator.viroAppProps.modelUri } : 
-            require('@/assets/models/larynx_with_muscles_and_ligaments.glb')}
-          position={[0, 0, -0.5]} // Position the model in front of the camera
+          source={modelUri ? { uri: modelUri } : require('@/assets/models/larynx_with_muscles_and_ligaments.glb')}
+          position={[0, 0, -0.5]}
           scale={modelScale}
+          rotation={modelRotation}
           type="GLB"
-          onLoadStart={() => console.log("Starting to load model")}
-          onLoadEnd={onObjectLoaded}
+          onLoadStart={onLoadStart}
+          onLoadEnd={onLoadEnd}
           onError={onError}
         />
       </ViroNode>
@@ -298,10 +168,87 @@ const UnifiedARScreen = () => {
   const [scanned, setScanned] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [isDownloading, setIsDownloading] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   
   // Check if we're on a real device that can support AR
   const isRealDevice = Platform.OS !== 'web' && !Platform.isTV;
+
+  // Validate and potentially download the model
+  const validateAndPrepareModel = async (uri: string): Promise<string> => {
+    try {
+      console.log('Validating model URI:', uri);
+      
+      // Check if the URI is valid
+      if (!uri || typeof uri !== 'string') {
+        throw new Error('Invalid model URI');
+      }
+      
+      // If it's a local file URI, verify it exists
+      if (uri.startsWith('file://')) {
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        if (!fileInfo.exists) {
+          throw new Error('Local model file not found');
+        }
+        return uri;
+      }
+      
+      // For remote URIs, consider downloading them first
+      if (uri.startsWith('http')) {
+        // Create a local filename based on the URL
+        const filename = uri.split('/').pop() || 'model.glb';
+        const localUri = `${FileSystem.documentDirectory}models/${filename}`;
+        
+        // Create directory if it doesn't exist
+        const modelDir = `${FileSystem.documentDirectory}models/`;
+        const dirInfo = await FileSystem.getInfoAsync(modelDir);
+        if (!dirInfo.exists) {
+          await FileSystem.makeDirectoryAsync(modelDir, { intermediates: true });
+        }
+        
+        // Check if we already have this file cached
+        const fileInfo = await FileSystem.getInfoAsync(localUri);
+        if (fileInfo.exists) {
+          console.log('Using cached model file:', localUri);
+          return localUri;
+        }
+        
+        // Download the file
+        console.log('Downloading model to cache:', uri);
+        setIsDownloading(true);
+        
+        const downloadResumable = FileSystem.createDownloadResumable(
+          uri,
+          localUri,
+          {},
+          (downloadProgress) => {
+            const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+            setDownloadProgress(progress);
+          }
+        );
+        
+        const result = await downloadResumable.downloadAsync();
+        setIsDownloading(false);
+        
+        if (result && result.uri) {
+          console.log('Model downloaded successfully:', result.uri);
+          return result.uri;
+        } else {
+          // If download fails, fall back to the remote URI
+          console.warn('Download failed, falling back to remote URI');
+          return uri;
+        }
+      }
+      
+      // If it's neither a file:// nor http(s):// URI, return as is
+      return uri;
+    } catch (error) {
+      console.error('Error validating model:', error);
+      // Fall back to the original URI
+      return uri;
+    }
+  };
 
   useEffect(() => {
     const getModelUri = async () => {
@@ -317,11 +264,18 @@ const UnifiedARScreen = () => {
         
         if (storedModelUri) {
           console.log('Setting model URI:', storedModelUri);
-          setModelUri(storedModelUri);
+          
+          // Validate and prepare the model before setting it
+          const preparedUri = await validateAndPrepareModel(storedModelUri);
+          setModelUri(preparedUri);
+          
+          // Hide scanner since we have a valid model
+          setShowScanner(false);
         } else {
           // Use default model if no stored URI
           console.log('No stored model URI found, using default model');
           setModelUri('');
+          setShowScanner(false); // Hide scanner and use default model
         }
         
         // Initialize global state handlers only once
@@ -474,9 +428,6 @@ const UnifiedARScreen = () => {
       
       console.log('Extracted model URL:', modelUrl);
       
-      // Add a small delay to ensure UI updates before fetching
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
       try {
         console.log('Fetching model from URL:', modelUrl);
         
@@ -487,7 +438,7 @@ const UnifiedARScreen = () => {
           return;
         }
         
-        // Save model URL to AsyncStorage - do this first before any UI updates
+        // Save model URL to AsyncStorage
         const saved = await saveModelUrl(modelUrl);
         
         if (!saved) {
@@ -498,20 +449,20 @@ const UnifiedARScreen = () => {
         
         console.log('Successfully saved model URL, loading model');
         
-        // Add a delay to ensure AsyncStorage is updated before transitioning
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // Add a delay to ensure AsyncStorage is updated
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Important: Stop any ongoing animations before updating state
         progressAnim.stopAnimation();
         
-        // Update model URI first, then hide scanner after a small delay
-        setModelUri(modelUrl);
+        // First hide the scanner, then update the model URI
+        setShowScanner(false);
         
-        // Add a delay before hiding the scanner to prevent UI transition issues
+        // Add a delay before setting the model URI
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Now it's safe to hide the scanner and stop scanning
-        setShowScanner(false);
+        // Now set the model URI
+        setModelUri(modelUrl);
         setScanning(false);
       } catch (error) {
         console.error('Error loading model:', error);
@@ -663,9 +614,24 @@ const UnifiedARScreen = () => {
       <View style={styles.container}>
         {showScanner ? (
           renderQRScanner()
-        ) : loading ? (
+        ) : loading || isDownloading ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading 3D model...</Text>
+            {isDownloading ? (
+              <>
+                <Text style={styles.loadingText}>Downloading 3D model...</Text>
+                <View style={styles.progressBarContainer}>
+                  <View 
+                    style={[
+                      styles.progressBar, 
+                      { width: `${downloadProgress * 100}%` }
+                    ]} 
+                  />
+                </View>
+                <Text style={styles.progressText}>{`${Math.round(downloadProgress * 100)}%`}</Text>
+              </>
+            ) : (
+              <Text style={styles.loadingText}>Loading 3D model...</Text>
+            )}
           </View>
         ) : loadingError ? (
           <View style={styles.errorContainer}>
@@ -845,6 +811,19 @@ const styles = StyleSheet.create({
   progressBar: {
     height: '100%',
     backgroundColor: '#bcba40',
+  },
+  progressBarContainer: {
+    width: width * 0.7,
+    height: 10,
+    backgroundColor: '#333',
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginTop: 10,
+  },
+  progressText: {
+    color: 'white',
+    fontSize: 16,
+    marginTop: 5,
   },
   overlay: {
     flex: 1,
