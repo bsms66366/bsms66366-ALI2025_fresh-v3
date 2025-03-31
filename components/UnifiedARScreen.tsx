@@ -16,6 +16,100 @@ declare global {
   };
 }
 
+// Main UnifiedARScreen component
+const UnifiedARScreen = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [modelUri, setModelUri] = useState<string | null>(null);
+  const [showScanner, setShowScanner] = useState(true);
+
+  // Set up global loading state handlers
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      globalThis.modelLoadingState = {
+        setIsLoading,
+        setLoadingError
+      };
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        globalThis.modelLoadingState = {};
+      }
+    };
+  }, []);
+
+  // Handle successful model scan
+  const handleModelScanned = useCallback((uri: string) => {
+    console.log('Model scanned, transitioning to AR view with URI:', uri);
+    setModelUri(uri);
+    setShowScanner(false);
+    setIsLoading(false);
+    setLoadingError(null);
+  }, []);
+
+  // If there's an error or user wants to scan again
+  const handleBackToScanner = useCallback(() => {
+    setShowScanner(true);
+    setModelUri(null);
+    setIsLoading(false);
+    setLoadingError(null);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#bcba40" />
+        <Text style={styles.loadingText}>Loading model...</Text>
+      </View>
+    );
+  }
+
+  if (loadingError) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>{loadingError}</Text>
+        <TouchableOpacity style={styles.button} onPress={handleBackToScanner}>
+          <Text style={styles.buttonText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (showScanner) {
+    return <QRScannerView onModelScanned={handleModelScanned} />;
+  }
+
+  if (modelUri) {
+    return (
+      <ViroARSceneNavigator
+        initialScene={{
+          scene: ARScene as unknown as () => JSX.Element,
+        }}
+        viroAppProps={{
+          modelUri,
+          onError: (error: string) => {
+            console.error('AR Scene Error:', error);
+            setLoadingError(error);
+            handleBackToScanner();
+          },
+          onLoadStart: () => {
+            console.log('Model load started');
+            setIsLoading(true);
+          },
+          onLoadEnd: () => {
+            console.log('Model load completed');
+            setIsLoading(false);
+          },
+        }}
+        style={styles.arView}
+      />
+    );
+  }
+
+  // Fallback to scanner
+  return <QRScannerView onModelScanned={handleModelScanned} />;
+};
+
 // QR Scanner Component
 const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) => void }) => {
   const [permission, requestPermission] = useCameraPermissions();
@@ -25,6 +119,7 @@ const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) 
   const [downloadProgress, setDownloadProgress] = useState(0);
   const lastScanTime = useRef(0);
   const cameraRef = useRef<CameraView>(null);
+  const isNavigating = useRef(false);
 
   useEffect(() => {
     const getPermissions = async () => {
@@ -37,7 +132,7 @@ const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) 
   }, [permission, requestPermission]);
 
   const handleCapture = useCallback(async () => {
-    if (scanned || loading || !cameraRef.current) return;
+    if (scanned || loading || !cameraRef.current || isNavigating.current) return;
     
     // Prevent multiple captures within 2 seconds
     const now = Date.now();
@@ -85,18 +180,20 @@ const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) 
         setDownloadProgress(progress);
       });
       
-      // Save to AsyncStorage
-      await AsyncStorage.setItem('currentModelUri', preparedUri);
-      console.log('Saved model URI to AsyncStorage:', preparedUri);
-      
-      // Notify parent component with a small delay for smooth transition
-      setTimeout(() => {
+      // Save to AsyncStorage and navigate only if we haven't already started navigating
+      if (!isNavigating.current) {
+        isNavigating.current = true;
+        await AsyncStorage.setItem('currentModelUri', preparedUri);
+        console.log('Saved model URI to AsyncStorage:', preparedUri);
+        
+        // Notify parent component
         onModelScanned(preparedUri);
-      }, 500);
+      }
     } catch (error) {
       console.error('Error processing QR code:', error);
       setError(error instanceof Error ? error.message : 'Failed to process QR code');
-      // Keep scanned state true to prevent auto-retrying
+      isNavigating.current = false;
+      setScanned(false);
     } finally {
       setLoading(false);
     }
@@ -106,6 +203,7 @@ const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) 
     setScanned(false);
     setError(null);
     setDownloadProgress(0);
+    isNavigating.current = false;
   }, []);
 
   // Validate and potentially download the model
@@ -261,107 +359,26 @@ const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) 
   );
 };
 
-// Simplified AR View Component
-const ARView = ({ modelUri }: { modelUri: string }) => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Log the modelUri to help with debugging
-  useEffect(() => {
-    console.log('ARView received modelUri:', modelUri);
-  }, [modelUri]);
-
-  // Setup global handlers for model loading state
-  useEffect(() => {
-    if (!global.modelLoadingState) {
-      global.modelLoadingState = {};
-    }
-    
-    global.modelLoadingState.setIsLoading = (isLoading: boolean) => setLoading(isLoading);
-    global.modelLoadingState.setLoadingError = (error: string | null) => setError(error);
-    
-    return () => {
-      if (global.modelLoadingState) {
-        global.modelLoadingState.setIsLoading = undefined;
-        global.modelLoadingState.setLoadingError = undefined;
-      }
+interface ARSceneProps {
+  sceneNavigator: {
+    viroAppProps: {
+      modelUri: string;
+      onError: (error: string) => void;
+      onLoadStart: () => void;
+      onLoadEnd: () => void;
     };
-  }, []);
-
-  // Simplified initialization of ViroARScene - no complex logic
-  const initScene = () => {
-    return <ARScene modelUri={modelUri} />;
   };
+}
 
-  return (
-    <View style={styles.arContainer}>
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#bcba40" />
-          <Text style={styles.loadingText}>Loading 3D model...</Text>
-        </View>
-      )}
-      
-      {error && (
-        <View style={styles.errorOverlay}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.errorButton}
-            onPress={() => setError(null)}
-          >
-            <Text style={styles.errorButtonText}>Dismiss</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      
-      <ViroARSceneNavigator
-        autofocus={true}
-        initialScene={{
-          scene: initScene,
-        }}
-        viroAppProps={{ modelUri: modelUri }}
-        style={styles.arView}
-      />
-    </View>
-  );
-};
-
-// AR Scene component - simplified version
-const ARScene = (props: any) => {
+const ARScene = (props: ARSceneProps) => {
   const [modelLoaded, setModelLoaded] = useState(false);
   const [modelLoadAttempted, setModelLoadAttempted] = useState(false);
-  const modelUri = props.sceneNavigator?.viroAppProps?.modelUri || props.modelUri || '';
+  const modelUri = props.sceneNavigator.viroAppProps.modelUri;
   
   useEffect(() => {
-    // Log the modelUri to help with debugging
-    console.log('ARScene received modelUri:', modelUri);
-    
-    // Verify the model file exists if it's a local file
-    const checkModelFile = async () => {
-      if (modelUri && modelUri.startsWith('file://')) {
-        try {
-          const fileInfo = await FileSystem.getInfoAsync(modelUri);
-          console.log('Model file info:', fileInfo);
-          if (!fileInfo.exists) {
-            console.error('Model file does not exist:', modelUri);
-            if (global.modelLoadingState?.setLoadingError) {
-              global.modelLoadingState.setLoadingError('Model file not found');
-            }
-          } else if (fileInfo.size === 0) {
-            console.error('Model file is empty:', modelUri);
-            if (global.modelLoadingState?.setLoadingError) {
-              global.modelLoadingState.setLoadingError('Model file is empty');
-            }
-          }
-        } catch (error) {
-          console.error('Error checking model file:', error);
-        }
-      }
-    };
-    
-    checkModelFile();
+    console.log('AR Scene received modelUri:', modelUri);
   }, [modelUri]);
-  
+
   // Handle model load events
   const onLoadStart = () => {
     console.log('Model load started for:', modelUri);
@@ -455,70 +472,67 @@ const ARScene = (props: any) => {
   );
 };
 
-// Types
-interface UnifiedARScreenProps {
-  startWithScanner?: boolean;
-}
+// Simplified AR View Component
+const ARView = ({ modelUri }: { modelUri: string }) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-// Main Component - now just switches between different views
-const UnifiedARScreen: React.FC<UnifiedARScreenProps> = ({ startWithScanner = true }) => {
-  const [modelUri, setModelUri] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [showScanner, setShowScanner] = useState(startWithScanner);
-
-  // Handle successful QR code scan
-  const handleModelScanned = (uri: string) => {
-    console.log('Model scanned, setting URI:', uri);
-    setModelUri(uri);
-    setShowScanner(false);
-  };
-
-  // Reset to scanner view
-  const resetToScanner = () => {
-    setShowScanner(true);
-    setModelUri(null);
-  };
-
-  // Check if there's a saved model URI
+  // Log the modelUri to help with debugging
   useEffect(() => {
-    if (!startWithScanner) {
-      const checkModelUri = async () => {
-        try {
-          const uri = await AsyncStorage.getItem('currentModelUri');
-          if (uri) {
-            console.log('Loaded saved model URI from AsyncStorage:', uri);
-            setModelUri(uri);
-            setShowScanner(false);
-          }
-        } catch (error) {
-          console.error('Error checking saved model URI:', error);
-        }
-      };
-      
-      checkModelUri();
+    console.log('ARView received modelUri:', modelUri);
+  }, [modelUri]);
+
+  // Setup global handlers for model loading state
+  useEffect(() => {
+    if (!global.modelLoadingState) {
+      global.modelLoadingState = {};
     }
-  }, [startWithScanner]);
+    
+    global.modelLoadingState.setIsLoading = (isLoading: boolean) => setLoading(isLoading);
+    global.modelLoadingState.setLoadingError = (error: string | null) => setError(error);
+    
+    return () => {
+      if (global.modelLoadingState) {
+        global.modelLoadingState.setIsLoading = undefined;
+        global.modelLoadingState.setLoadingError = undefined;
+      }
+    };
+  }, []);
+
+  // Simplified initialization of ViroARScene - no complex logic
+  const initScene = () => {
+    return <ARScene sceneNavigator={{ viroAppProps: { modelUri, onError: () => {}, onLoadStart: () => {}, onLoadEnd: () => {} } }} />;
+  };
 
   return (
-    <View style={styles.container}>
-      {showScanner ? (
-        <QRScannerView onModelScanned={handleModelScanned} />
-      ) : modelUri ? (
-        <>
-          <ARView modelUri={modelUri} />
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={resetToScanner}
-          >
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-        </>
-      ) : (
-        <View style={styles.loadingContainer}>
+    <View style={styles.arContainer}>
+      {loading && (
+        <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#bcba40" />
-          <Text style={styles.text}>Preparing AR experience...</Text>
+          <Text style={styles.loadingText}>Loading 3D model...</Text>
         </View>
       )}
+      
+      {error && (
+        <View style={styles.errorOverlay}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.errorButton}
+            onPress={() => setError(null)}
+          >
+            <Text style={styles.errorButtonText}>Dismiss</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      
+      <ViroARSceneNavigator
+        autofocus={true}
+        initialScene={{
+          scene: initScene,
+        }}
+        viroAppProps={{ modelUri: modelUri }}
+        style={styles.arView}
+      />
     </View>
   );
 };
@@ -526,7 +540,33 @@ const UnifiedARScreen: React.FC<UnifiedARScreenProps> = ({ startWithScanner = tr
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#333',
+  },
+  errorText: {
+    color: '#ff0000',
+    fontSize: 16,
+    textAlign: 'center',
+    margin: 20,
+  },
+  button: {
+    backgroundColor: '#bcba40',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  arView: {
+    flex: 1,
   },
   scannerContainer: {
     flex: 1,
@@ -534,9 +574,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   arContainer: {
-    flex: 1,
-  },
-  arView: {
     flex: 1,
   },
   scannerOverlay: {
@@ -599,11 +636,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 100,
   },
-  loadingText: {
-    color: 'white',
-    fontSize: 18,
-    marginTop: 20,
-  },
   text: {
     color: 'white',
     fontSize: 18,
@@ -615,12 +647,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 100,
     padding: 20,
-  },
-  errorText: {
-    color: '#ff5252',
-    fontSize: 18,
-    textAlign: 'center',
-    marginVertical: 10,
   },
   errorButton: {
     backgroundColor: '#bcba40',
