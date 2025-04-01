@@ -1,41 +1,41 @@
 import React, { useRef, useState, useEffect } from "react";
-import {
-  CameraMode,
-  CameraType,
-  CameraView,
-  useCameraPermissions,
-} from "expo-camera";
-import { Button, Pressable, StyleSheet, Text, View, Image, Animated } from "react-native";
-import { AntDesign } from "@expo/vector-icons";
-import { Feather } from "@expo/vector-icons";
-import { FontAwesome } from "@expo/vector-icons"; 
+import { StyleSheet, Text, View, Animated, Button, Dimensions } from "react-native";
+import { Camera, useCameraDevice, useCodeScanner, Code } from 'react-native-vision-camera';
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function QRScannerScreen() {
-  const [permission, requestPermission] = useCameraPermissions();
-  const ref = useRef<CameraView>(null);
-  const [uri, setUri] = useState<string | null>(null);
-  const [mode, setMode] = useState<CameraMode>("picture");
-  const [facing, setFacing] = useState<CameraType>("back");
-  const [recording, setRecording] = useState(false);
-  
-  // QR code scanning states
+  const device = useCameraDevice('back');
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scanMode, setScanMode] = useState(true); // Start in QR scan mode
   
   // Progress bar animation
   const progressAnim = useRef(new Animated.Value(0)).current;
-  
+
+  // Request camera permissions
+  useEffect(() => {
+    (async () => {
+      const cameraPermission = await Camera.requestCameraPermission();
+      setHasPermission(cameraPermission === 'granted');
+    })();
+  }, []);
+
+  // Code scanner setup
+  const codeScanner = useCodeScanner({
+    codeTypes: ['qr'],
+    onCodeScanned: (codes) => {
+      if (codes.length > 0 && !scanned && codes[0].value) {
+        handleBarCodeScanned(codes[0]);
+      }
+    }
+  });
+
   // Start progress animation when loading
   useEffect(() => {
     if (loading) {
-      // Reset progress
       progressAnim.setValue(0);
-      
-      // Animate to 100% over 2 seconds
       Animated.timing(progressAnim, {
         toValue: 1,
         duration: 2000,
@@ -44,495 +44,195 @@ export default function QRScannerScreen() {
     }
   }, [loading]);
 
-  if (!permission) {
-    return null;
-  }
-
-  if (!permission.granted) {
-    return (
-      <View style={styles.container}>
-        <Text style={{ textAlign: "center", color: "white" }}>
-          We need your permission to use the camera
-        </Text>
-        <Button onPress={requestPermission} title="Grant permission" />
-      </View>
-    );
-  }
-
   // Function to validate if a URL points to a 3D model
   const isValidModelUrl = (url: string): boolean => {
-    // Check if URL ends with common 3D model extensions
     if (url.match(/\.(glb|gltf|obj|fbx)$/i)) {
       return true;
     }
-    
-    // Check if URL contains a model parameter
     if (url.includes('model=') || url.includes('modelUrl=')) {
       return true;
     }
-    
     return false;
   };
 
   // Extract model URL from QR code data
   const extractModelUrl = (data: string): string => {
-    // If data is already a valid URL, return it
     if (data.startsWith('http://') || data.startsWith('https://')) {
       return data;
     }
-    
-    // Try to extract URL from text
     const urlMatch = data.match(/(https?:\/\/[^\s]+)/);
     if (urlMatch) {
       return urlMatch[0];
     }
-    
     return data;
   };
 
   // Save model URL to AsyncStorage
   const saveModelUrl = async (modelUrl: string) => {
     try {
-      // First clear any existing model data to prevent conflicts
       await AsyncStorage.removeItem('currentModelUri');
       await AsyncStorage.removeItem('currentModelMetadata');
-      
-      // Add a small delay to ensure the clear operation completes
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Now save the new model data
       await AsyncStorage.setItem('currentModelUri', modelUrl);
+      await AsyncStorage.setItem('currentModelMetadata', JSON.stringify({
+        source: 'qr',
+        timestamp: new Date().toISOString()
+      }));
       
-      // Create basic metadata for the model
-      const metadata = {
-        source: 'qr_scan',
-        timestamp: new Date().toISOString(),
-        url: modelUrl,
-      };
-      
-      await AsyncStorage.setItem('currentModelMetadata', JSON.stringify(metadata));
-      
-      console.log('Model URL and metadata saved to AsyncStorage:', modelUrl);
       return true;
     } catch (error) {
-      console.error('Error saving model URL to AsyncStorage:', error);
-      setError('Failed to save model information');
+      console.error('Error saving model URL:', error);
       return false;
     }
   };
 
-  const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
-    if (scanned || !data) return;
+  const handleBarCodeScanned = async (code: Code) => {
+    if (scanned || !code.value) return;
     
     setScanned(true);
     setLoading(true);
     setError(null);
-    
+
     try {
-      console.log(`Bar code with type ${type} and data ${data} has been scanned!`);
+      const modelUrl = extractModelUrl(code.value);
       
-      // Extract model URL from QR code data
-      const modelUrl = extractModelUrl(data);
-      console.log('Extracted model URL:', modelUrl);
-      
-      // Validate if it's a 3D model URL
       if (!isValidModelUrl(modelUrl)) {
-        console.log('Invalid model URL detected');
-        setLoading(false);
-        setError('Invalid QR code: Not a 3D model URL');
-        return;
+        throw new Error('Invalid model URL format');
       }
-      
-      // Save model URL to AsyncStorage
+
       const saved = await saveModelUrl(modelUrl);
-      
-      if (saved) {
-        console.log('Successfully saved model URL, navigating to AR screen');
-        // Complete the progress animation before navigating
-        setTimeout(() => {
-          setLoading(false);
-          // Navigate to the appropriate AR screen based on the model type
-          if (modelUrl.includes('marker') || modelUrl.includes('tracked')) {
-            router.push("/marker-ar");
-          } else {
-            router.push("/viro-ar");
-          }
-        }, 1000);
-      } else {
-        setLoading(false);
-        setError('Failed to process the QR code');
+      if (!saved) {
+        throw new Error('Failed to save model URL');
       }
+
+      // Add a small delay for visual feedback
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Navigate to AR view
+      router.replace({
+        pathname: '/(ar)/ViroARScreen',
+        params: {
+          modelUri: modelUrl,
+          source: 'qr_scan',
+          timestamp: Date.now()
+        }
+      });
+      
     } catch (error) {
-      console.error('Error processing QR code:', error);
+      setError(error instanceof Error ? error.message : 'Failed to process QR code');
+      setScanned(false);
+    } finally {
       setLoading(false);
-      setError('An error occurred while processing the QR code');
     }
   };
 
-  const takePicture = async () => {
-    const photo = await ref.current?.takePictureAsync();
-    if (photo?.uri) {
-      setUri(photo.uri);
-    }
-  };
+  if (hasPermission === null) {
+    return <View style={styles.container}><Text>Requesting camera permission...</Text></View>;
+  }
 
-  const recordVideo = async () => {
-    if (recording) {
-      setRecording(false);
-      ref.current?.stopRecording();
-      return;
-    }
-    setRecording(true);
-    const video = await ref.current?.recordAsync();
-    console.log({ video });
-  };
-
-  const toggleMode = () => {
-    setMode((prev) => (prev === "picture" ? "video" : "picture"));
-  };
-
-  const toggleFacing = () => {
-    setFacing((prev) => (prev === "back" ? "front" : "back"));
-  };
-
-  const toggleScanMode = () => {
-    setScanMode(prev => !prev);
-    setScanned(false);
-    setError(null);
-  };
-
-  const renderPicture = () => {
+  if (hasPermission === false) {
     return (
-      <View>
-        <Image
-          source={{ uri: uri || undefined }}
-          style={{ width: 300, aspectRatio: 1 }}
-        />
-        <Button onPress={() => setUri(null)} title="Take another picture" />
+      <View style={styles.container}>
+        <Text style={styles.text}>Camera permission denied</Text>
+        <Button title="Request Permission" onPress={() => Camera.requestCameraPermission()} />
       </View>
     );
-  };
+  }
 
-  const renderCamera = () => {
+  if (!device) {
     return (
-      <CameraView
-        style={styles.camera}
-        ref={ref}
-        mode={mode}
-        facing={facing}
-        mute={false}
-        onBarcodeScanned={scanMode ? handleBarCodeScanned : undefined}
-        barcodeScannerSettings={{
-          barcodeTypes: ["qr"],
-        }}
-        responsiveOrientationWhenOrientationLocked
-      >
-        {scanMode ? (
-          <View style={styles.overlay}>
-            {/* QR code frame guide */}
-            <View style={styles.scanArea}>
-              <View style={styles.cornerTL} />
-              <View style={styles.cornerTR} />
-              <View style={styles.cornerBL} />
-              <View style={styles.cornerBR} />
-            </View>
-            
-            {/* Instructions */}
-            <Text style={styles.instructionText}>
-              Position QR code within the frame
-            </Text>
-            
-            {/* Loading indicator with progress bar */}
-            {loading && (
-              <View style={styles.loadingContainer}>
-                <View style={styles.progressContainer}>
-                  <Animated.View 
-                    style={[
-                      styles.progressBar, 
-                      { 
-                        width: progressAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['0%', '100%']
-                        }) 
-                      }
-                    ]} 
-                  />
-                </View>
-                <Text style={styles.loadingText}>Processing QR code...</Text>
-              </View>
-            )}
-            
-            {/* Error message */}
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-                <Button 
-                  onPress={() => {
-                    setScanned(false);
-                    setError(null);
-                  }} 
-                  title="Try Again" 
-                />
-              </View>
-            )}
-            
-            {/* Controls */}
-            <View style={styles.controlsContainer}>
-              {scanned && !loading && !error && (
-                <Button 
-                  onPress={() => setScanned(false)} 
-                  title="Scan Again" 
-                />
-              )}
-              
-              <Pressable 
-                style={styles.backButton} 
-                onPress={() => router.push("/viro-ar")}
-              >
-                <FontAwesome name="arrow-left" size={24} color="white" />
-                <Text style={styles.backButtonText}>Back to AR</Text>
-              </Pressable>
-              
-              <Pressable 
-                style={styles.modeButton} 
-                onPress={toggleScanMode}
-              >
-                <AntDesign name="camera" size={24} color="white" />
-                <Text style={styles.backButtonText}>Camera Mode</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.shutterContainer}>
-            <Pressable onPress={toggleMode}>
-              {mode === "picture" ? (
-                <AntDesign name="picture" size={32} color="white" />
-              ) : (
-                <Feather name="video" size={32} color="white" />
-              )}
-            </Pressable>
-            <Pressable onPress={mode === "picture" ? takePicture : recordVideo}>
-              {({ pressed }) => (
-                <View
-                  style={[
-                    styles.shutterBtn,
-                    {
-                      opacity: pressed ? 0.5 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.shutterBtnInner,
-                      {
-                        backgroundColor: mode === "picture" ? "white" : "red",
-                      },
-                    ]}
-                  />
-                </View>
-              )}
-            </Pressable>
-            <Pressable onPress={toggleFacing}>
-              <FontAwesome name="rotate-left" size={32} color="white" />
-            </Pressable>
-            
-            <Pressable 
-              style={[styles.modeButton, { position: 'absolute', bottom: -60, alignSelf: 'center' }]} 
-              onPress={toggleScanMode}
-            >
-              <AntDesign name="qrcode" size={24} color="white" />
-              <Text style={styles.backButtonText}>QR Scan Mode</Text>
-            </Pressable>
-          </View>
-        )}
-      </CameraView>
+      <View style={styles.container}>
+        <Text style={styles.text}>No camera device found</Text>
+      </View>
     );
-  };
+  }
 
   return (
     <View style={styles.container}>
-      {uri ? renderPicture() : renderCamera()}
+      <Camera
+        style={StyleSheet.absoluteFill}
+        device={device}
+        isActive={!scanned}
+        codeScanner={codeScanner}
+      />
+      
+      {/* Scanning overlay */}
+      <View style={styles.overlay}>
+        <View style={styles.scanArea}>
+          {loading && (
+            <Animated.View
+              style={[
+                styles.progressBar,
+                {
+                  width: progressAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%']
+                  })
+                }
+              ]}
+            />
+          )}
+        </View>
+      </View>
+
+      {/* Status messages */}
+      <View style={styles.messageContainer}>
+        {error ? (
+          <Text style={styles.errorText}>{error}</Text>
+        ) : (
+          <Text style={styles.text}>
+            {loading ? 'Processing...' : 'Position QR code in the center'}
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
 
+const { width } = Dimensions.get('window');
+const scanAreaSize = width * 0.35; // Reduced scan area size to 35% of screen width
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  camera: {
-    flex: 1,
-    width: "100%",
-  },
-  shutterContainer: {
-    position: "absolute",
-    bottom: 44,
-    left: 0,
-    width: "100%",
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 30,
-  },
-  shutterBtn: {
-    backgroundColor: "transparent",
-    borderWidth: 5,
-    borderColor: "white",
-    width: 85,
-    height: 85,
-    borderRadius: 45,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shutterBtnInner: {
-    width: 70,
-    height: 70,
-    borderRadius: 50,
+    backgroundColor: '#000',
   },
   overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   scanArea: {
-    width: 250,
-    height: 250,
+    width: scanAreaSize,
+    height: scanAreaSize,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: '#fff',
     backgroundColor: 'transparent',
-    position: 'relative',
   },
-  cornerTL: {
+  messageContainer: {
     position: 'absolute',
-    top: -2,
-    left: -2,
-    width: 30,
-    height: 30,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderColor: '#ffffff',
-  },
-  cornerTR: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 30,
-    height: 30,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderColor: '#ffffff',
-  },
-  cornerBL: {
-    position: 'absolute',
-    bottom: -2,
-    left: -2,
-    width: 30,
-    height: 30,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderColor: '#ffffff',
-  },
-  cornerBR: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 30,
-    height: 30,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderColor: '#ffffff',
-  },
-  instructionText: {
-    color: '#ffffff',
-    fontSize: 16,
-    marginTop: 20,
-    textAlign: 'center',
+    bottom: 100,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    padding: 20,
   },
   text: {
-    fontSize: 18,
-    color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  subText: {
-    fontSize: 14,
-    color: '#cccccc',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressContainer: {
-    width: '80%',
-    height: 10,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 5,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-  },
-  loadingText: {
-    color: '#ffffff',
+    color: '#fff',
     fontSize: 16,
-    marginTop: 15,
-  },
-  errorContainer: {
-    position: 'absolute',
-    padding: 20,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    borderRadius: 10,
-    alignItems: 'center',
+    textAlign: 'center',
   },
   errorText: {
-    color: '#ff6666',
+    color: '#ff4444',
     fontSize: 16,
-    marginBottom: 15,
     textAlign: 'center',
   },
-  controlsContainer: {
+  progressBar: {
+    height: 2,
+    backgroundColor: '#4CAF50',
     position: 'absolute',
-    bottom: 40,
+    bottom: -2,
     left: 0,
-    right: 0,
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 30,
-    marginTop: 20,
-  },
-  modeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 30,
-    marginTop: 20,
-  },
-  backButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    marginLeft: 8,
   },
 });

@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Alert, Dimensions, ScrollView, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Alert, Dimensions, ScrollView, Modal } from 'react-native';
 import { router } from 'expo-router';
 import axios from 'axios';
-import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BarCodeScanner } from 'expo-barcode-scanner';
-import { Camera, CameraType } from 'expo-camera';
-import UnifiedARScreen from '../../components/UnifiedARScreen';
+import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from 'react-native-vision-camera';
+import { Ionicons } from '@expo/vector-icons';
 
 // Define model types
 interface Model {
@@ -20,28 +18,32 @@ interface Model {
 
 const { width } = Dimensions.get('window');
 
-// Helper function to extract error message
-const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  return 'Unknown error occurred';
-};
-
-export default function ModelFetchScreen() {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [scanned, setScanned] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [scanLoading, setScanLoading] = useState(false);
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState(0);
+const ModelFetchScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [models, setModels] = useState<Model[]>([]);
   const [filteredModels, setFilteredModels] = useState<Model[]>([]);
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  
+  // QR Scanner state
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  
+  // Camera permission and device
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
+  
+  // Code scanner setup
+  const codeScanner = useCodeScanner({
+    codeTypes: ['qr'],
+    onCodeScanned: (codes) => {
+      if (codes.length > 0 && !scanned && codes[0].value) {
+        handleBarCodeScanned(codes[0].value);
+      }
+    }
+  });
 
   // API URLs
   const API_URL = 'https://placements.bsms.ac.uk/api/physquiz';
@@ -178,7 +180,7 @@ export default function ModelFetchScreen() {
 
       if (fileInfo.exists) {
         // Model already downloaded
-        navigateToARScreen(localUri);
+        navigateToARScreen(localUri, 'model_fetch');
       } else {
         // Download the model with progress tracking
         console.log('Downloading model from URL:', selectedModel.url);
@@ -195,7 +197,7 @@ export default function ModelFetchScreen() {
 
         const result = await downloadResumable.downloadAsync();
         if (result) {
-          navigateToARScreen(result.uri);
+          navigateToARScreen(result.uri, 'model_fetch');
         } else {
           throw new Error('Download failed');
         }
@@ -208,12 +210,111 @@ export default function ModelFetchScreen() {
     }
   };
 
+  // Open QR Scanner
+  const openQRScanner = async () => {
+    try {
+      // Request camera permission if not already granted
+      if (!hasPermission) {
+        const granted = await requestPermission();
+        if (!granted) {
+          Alert.alert('Permission Required', 'Camera permission is needed to scan QR codes');
+          return;
+        }
+      }
+      
+      setShowScanner(true);
+      setScanned(false);
+      setScanError(null);
+      setDownloadProgress(0);
+    } catch (error) {
+      console.error('Error requesting camera permission:', error);
+      Alert.alert('Error', 'Failed to access camera');
+    }
+  };
+
+  // Handle QR code scanning
+  const handleBarCodeScanned = async (data: string) => {
+    if (scanned || scanLoading) return;
+    
+    try {
+      setScanned(true);
+      setScanLoading(true);
+      setScanError(null);
+      
+      console.log('QR code scanned:', data);
+      
+      // Simple validation - ensure it's a URL
+      if (!data.startsWith('https')) {
+        throw new Error('Invalid QR code. Please scan a QR code with a valid model URL.');
+      }
+      
+      // Extract model URL from QR code
+      const modelUrl = data.trim();
+      console.log('Model URL from QR code:', modelUrl);
+      
+      // Check if the URL ends with a valid 3D model extension
+      const validExtensions = ['.glb', '.gltf', '.obj', '.fbx'];
+      const hasValidExtension = validExtensions.some(ext => modelUrl.toLowerCase().endsWith(ext));
+      
+      if (!hasValidExtension) {
+        throw new Error('Invalid model format. Please scan a QR code with a valid 3D model URL.');
+      }
+      
+      // Prepare to download the model
+      const filename = modelUrl.split('/').pop() || 'model.glb';
+      const localUri = `${FileSystem.documentDirectory}models/${filename}`;
+      
+      // Create the models directory if it doesn't exist
+      const modelDir = `${FileSystem.documentDirectory}models/`;
+      const dirInfo = await FileSystem.getInfoAsync(modelDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(modelDir, { intermediates: true });
+      }
+      
+      // Check if model already exists
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      
+      if (fileInfo.exists) {
+        // Model already downloaded
+        setShowScanner(false);
+        navigateToARScreen(localUri, 'qr_scan');
+      } else {
+        // Download the model with progress tracking
+        console.log('Downloading model from URL:', modelUrl);
+        
+        const downloadResumable = FileSystem.createDownloadResumable(
+          modelUrl,
+          localUri,
+          {},
+          (downloadProgress) => {
+            const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+            setDownloadProgress(progress);
+          }
+        );
+        
+        const result = await downloadResumable.downloadAsync();
+        if (result) {
+          setShowScanner(false);
+          navigateToARScreen(result.uri, 'qr_scan');
+        } else {
+          throw new Error('Failed to download model');
+        }
+      }
+    } catch (error) {
+      console.error('Error processing QR code:', error);
+      setScanError(error instanceof Error ? error.message : 'Failed to process QR code');
+      setScanned(false);
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
   // Navigate to AR screen with the downloaded model
-  const navigateToARScreen = async (modelUri: string) => {
+  const navigateToARScreen = async (modelUri: string, source: string) => {
     try {
       // Store the model URI in AsyncStorage
       await AsyncStorage.setItem('currentModelUri', modelUri);
-
+      
       // Get the stored models and add this one if not present
       const storedModels = await AsyncStorage.getItem('downloadedModels');
       const models = storedModels ? JSON.parse(storedModels) : [];
@@ -227,6 +328,7 @@ export default function ModelFetchScreen() {
         pathname: "/(ar)/ViroARScreen",
         params: { 
           modelUri,
+          source,
           timestamp: Date.now() // Add timestamp to force new instance
         }
       });
@@ -236,135 +338,122 @@ export default function ModelFetchScreen() {
     }
   };
 
-  // Handle QR code scanning
-  const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    if (scanned || scanLoading) return;
-
-    try {
-      setScanned(true);
-      setScanLoading(true);
-      setScanError(null);
-
-      console.log('QR code scanned:', data);
-
-      // Simple validation - ensure it's a URL
-      if (!data.startsWith('https')) {
-        throw new Error('Invalid QR code. Please scan a QR code with a valid model URL.');
-      }
-
-      // Extract model URL from QR code
-      const modelUrl = data.trim();
-      console.log('Model URL from QR code:', modelUrl);
-
-      // Check if the URL ends with a valid 3D model extension
-      const validExtensions = ['.glb', '.gltf', '.obj', '.fbx'];
-      const hasValidExtension = validExtensions.some(ext => modelUrl.toLowerCase().endsWith(ext));
-
-      if (!hasValidExtension) {
-        throw new Error('Invalid model format. Please scan a QR code with a valid 3D model URL.');
-      }
-
-      // Prepare to download the model
-      const filename = modelUrl.split('/').pop() || 'model.glb';
-      const localUri = `${FileSystem.documentDirectory}models/${filename}`;
-
-      // Create the models directory if it doesn't exist
-      const modelDir = `${FileSystem.documentDirectory}models/`;
-      const dirInfo = await FileSystem.getInfoAsync(modelDir);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(modelDir, { intermediates: true });
-      }
-
-      // Check if model already exists
-      const fileInfo = await FileSystem.getInfoAsync(localUri);
-
-      if (fileInfo.exists) {
-        // Model already downloaded
-        setShowScanner(false);
-        navigateToARScreen(localUri);
-      } else {
-        // Download the model with progress tracking
-        console.log('Downloading model from URL:', modelUrl);
-
-        const downloadResumable = FileSystem.createDownloadResumable(
-          modelUrl,
-          localUri,
-          {},
-          (downloadProgress) => {
-            const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-            setDownloadProgress(progress);
-          }
-        );
-
-        const result = await downloadResumable.downloadAsync();
-        if (result) {
-          setShowScanner(false);
-          navigateToARScreen(result.uri);
-        } else {
-          throw new Error('Failed to download model');
-        }
-      }
-    } catch (error) {
-      console.error('Error processing QR code:', error);
-      setScanError(getErrorMessage(error));
-      setScanned(false);
-    } finally {
-      setScanLoading(false);
-    }
+  // QR Scanner Component
+  const renderQRScanner = () => {
+    return (
+      <Modal
+        visible={showScanner}
+        animationType="slide"
+        onRequestClose={() => setShowScanner(false)}
+      >
+        <View style={styles.scannerContainer}>
+          <View style={styles.scannerHeader}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowScanner(false)}
+            >
+              <Ionicons name="close" size={28} color="white" />
+            </TouchableOpacity>
+            <Text style={styles.scannerTitle}>Scan Model QR Code</Text>
+          </View>
+          
+          {scanLoading ? (
+            <View style={styles.scannerLoading}>
+              <ActivityIndicator size="large" color="#bcba40" />
+              <Text style={styles.scannerLoadingText}>Processing QR code...</Text>
+            </View>
+          ) : !device || !hasPermission ? (
+            <View style={styles.permissionContainer}>
+              <Text style={styles.permissionText}>
+                Camera permission is required to scan QR codes
+              </Text>
+              <TouchableOpacity 
+                style={styles.permissionButton}
+                onPress={requestPermission}
+              >
+                <Text style={styles.permissionButtonText}>Grant Permission</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Camera
+              style={StyleSheet.absoluteFillObject}
+              device={device}
+              isActive={showScanner && !scanned}
+              codeScanner={codeScanner}
+            />
+          )}
+          
+          <View style={styles.scannerOverlay}>
+            <View style={styles.scanFrame} />
+          </View>
+          
+          <View style={styles.scannerInstructions}>
+            <Text style={styles.instructionText}>
+              Position QR code within the frame
+            </Text>
+            {scanError && (
+              <Text style={styles.errorText}>{scanError}</Text>
+            )}
+          </View>
+          
+          {scanned && !scanLoading && (
+            <TouchableOpacity
+              style={styles.scanAgainButton}
+              onPress={() => setScanned(false)}
+            >
+              <Text style={styles.scanAgainText}>Tap to Scan Again</Text>
+            </TouchableOpacity>
+          )}
+          
+          <View style={styles.downloadProgress}>
+            {downloadProgress > 0 && downloadProgress < 1 && (
+              <>
+                <Text style={styles.downloadText}>
+                  Downloading model: {Math.round(downloadProgress * 100)}%
+                </Text>
+                <View style={styles.progressBarContainer}>
+                  <View 
+                    style={[
+                      styles.progressBar, 
+                      { width: `${downloadProgress * 100}%` }
+                    ]} 
+                  />
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    );
   };
 
+  // Load models when the screen mounts
   useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
-    })();
+    fetchAvailableModels();
   }, []);
-
-  if (hasPermission === null) {
-    return (
-      <View style={styles.container}>
-        <Text>Requesting camera permission...</Text>
-      </View>
-    );
-  }
-
-  if (hasPermission === false) {
-    return (
-      <View style={styles.container}>
-        <Text>No access to camera</Text>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>3D Model Selector</Text>
-
-      {/* Header Image */}
-      <View style={styles.imageContainer}>
-        <Image 
-          source={require('../../assets/images/interfaceIcons_Artboard39.png')} 
-          style={styles.headerImage} 
-        />
-      </View>
-
+      
       {/* Scan QR Code Button */}
       <TouchableOpacity
         style={styles.scanButton}
-        onPress={() => setShowScanner(true)}
+        onPress={openQRScanner}
       >
+        <Ionicons name="qr-code" size={24} color="white" />
         <Text style={styles.scanButtonText}>Scan QR Code</Text>
       </TouchableOpacity>
-
+      
       {/* Model Selection */}
       <View style={styles.modelSelectionContainer}>
         <Text style={styles.sectionTitle}>Available 3D Models</Text>
-
+        
         {isLoading && filteredModels.length === 0 ? (
           <ActivityIndicator size="large" color="#bcba40" />
         ) : filteredModels.length > 0 ? (
-          <ScrollView>
-            {filteredModels.map(model => (
+          <ScrollView style={styles.modelList}>
+            {filteredModels.map((model) => (
               <TouchableOpacity
                 key={model.id}
                 style={[
@@ -373,10 +462,8 @@ export default function ModelFetchScreen() {
                 ]}
                 onPress={() => setSelectedModel(model)}
               >
-                <Text style={styles.modelName}>{model.question}</Text>
+                <Text style={styles.modelTitle}>{model.question}</Text>
                 <Text style={styles.modelDescription}>{model.description}</Text>
-                <Text style={styles.modelCategory}>Category ID: {model.category_id}</Text>
-                <Text style={styles.modelUrl}>URL: {model.url.substring(0, 30)}...</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -384,18 +471,20 @@ export default function ModelFetchScreen() {
           <Text style={styles.noModelsText}>No 3D models available</Text>
         )}
       </View>
-
+      
       {/* Download Progress */}
       {isLoading && downloadProgress > 0 && (
         <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>{`Downloading: ${Math.round(downloadProgress * 100)}%`}</Text>
+          <Text style={styles.progressText}>
+            Downloading: {Math.round(downloadProgress * 100)}%
+          </Text>
         </View>
       )}
-
+      
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.button, !selectedModel && styles.disabledButton]}
+          style={[styles.button, (!selectedModel || isLoading) && styles.disabledButton]}
           onPress={downloadModel}
           disabled={!selectedModel || isLoading}
         >
@@ -403,7 +492,7 @@ export default function ModelFetchScreen() {
             {isLoading ? 'Processing...' : 'Load Selected Model'}
           </Text>
         </TouchableOpacity>
-
+        
         <TouchableOpacity
           style={styles.button}
           onPress={() => router.back()}
@@ -411,178 +500,132 @@ export default function ModelFetchScreen() {
           <Text style={styles.buttonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
-
-      {showScanner ? (
-        <View style={styles.scannerContainer}>
-          {scanLoading ? (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color="#bcba40" />
-              <Text style={styles.loadingText}>
-                {downloadProgress > 0 
-                  ? `Downloading model... ${Math.round(downloadProgress * 100)}%` 
-                  : 'Processing QR code...'}
-              </Text>
-            </View>
-          ) : (
-            <BarCodeScanner
-              style={StyleSheet.absoluteFillObject}
-              onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-              barCodeTypes={[BarCodeScanner.Constants.BarCodeType.qr]}
-            >
-              <View style={styles.scannerOverlay}>
-                <View style={styles.scannerMarker} />
-              </View>
-              
-              <View style={styles.scannerTextContainer}>
-                <Text style={styles.scannerTitle}>Scan QR Code</Text>
-                <Text style={styles.scannerInstructions}>
-                  Position the QR code in the center of the screen
-                </Text>
-                {scanError && <Text style={styles.errorText}>{scanError}</Text>}
-              </View>
-              
-              {scanned && (
-                <TouchableOpacity
-                  style={styles.scanAgainButton}
-                  onPress={() => setScanned(false)}
-                >
-                  <Text style={styles.scanAgainButtonText}>Tap to Scan Again</Text>
-                </TouchableOpacity>
-              )}
-            </BarCodeScanner>
-          )}
-        </View>
-      ) : null}
+      
+      {renderQRScanner()}
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#000000',
     padding: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#bcba40',
     textAlign: 'center',
-    marginTop: 40,
-    marginBottom: 20,
-  },
-  imageContainer: {
-    width: '100%',
-    height: 150,
-    marginBottom: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerImage: {
-    width: '25%',
-    height: '100%',
-    resizeMode: 'contain',
+    marginTop: 20,
   },
   modelSelectionContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 20,
     flex: 1,
+    marginVertical: 20,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 15,
+    color: '#bcba40',
+    marginBottom: 10,
+  },
+  modelList: {
+    flex: 1,
   },
   modelItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
+    backgroundColor: '#1a1a1a',
     padding: 15,
+    borderRadius: 8,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: '#333',
   },
   selectedModelItem: {
     borderColor: '#bcba40',
+    backgroundColor: '#2a2a2a',
   },
-  modelName: {
+  modelTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#bcba40',
     marginBottom: 5,
   },
   modelDescription: {
     fontSize: 14,
-    color: '#ccc',
-  },
-  modelCategory: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 5,
-  },
-  modelUrl: {
-    fontSize: 10,
-    color: '#666',
-    marginTop: 2,
+    color: '#9D9D9C',
   },
   noModelsText: {
-    color: '#ccc',
+    color: '#9D9D9C',
     textAlign: 'center',
     marginTop: 20,
-    fontSize: 16,
-  },
-  progressContainer: {
-    marginBottom: 20,
-  },
-  progressText: {
-    color: '#fff',
-    fontSize: 14,
-    marginBottom: 5,
-    textAlign: 'center',
   },
   buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginTop: 20,
   },
   button: {
     backgroundColor: '#bcba40',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    padding: 15,
     borderRadius: 8,
-    minWidth: 120,
+    marginBottom: 10,
     alignItems: 'center',
   },
   disabledButton: {
-    backgroundColor: 'rgba(188, 186, 64, 0.5)',
+    backgroundColor: '#4a4a4a',
   },
   buttonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
   },
+  progressContainer: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  progressText: {
+    color: '#bcba40',
+    fontSize: 14,
+  },
   scanButton: {
-    flexDirection: 'row',
     backgroundColor: '#bcba40',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginBottom: 15,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'center',
-    width: '80%',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 20,
   },
   scanButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+    marginLeft: 10,
   },
   scannerContainer: {
     flex: 1,
     backgroundColor: 'black',
+  },
+  scannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 50,
+    paddingBottom: 20,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  closeButton: {
+    position: 'absolute',
+    left: 15,
+    padding: 5,
+  },
+  scannerTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   scannerOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -590,68 +633,108 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'transparent',
   },
-  scannerMarker: {
+  scanFrame: {
     width: width * 0.35, // Reduced from 70% to 35% for better focus
     height: width * 0.35,
     borderWidth: 2,
     borderColor: '#bcba40',
+    borderRadius: 10,
     backgroundColor: 'transparent',
   },
-  scannerTextContainer: {
+  scannerInstructions: {
     position: 'absolute',
     bottom: 120,
     left: 0,
     right: 0,
-    alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.7)',
     paddingVertical: 15,
   },
-  scannerTitle: {
+  instructionText: {
     color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  scannerInstructions: {
-    fontSize: 14,
-    color: 'white',
+    fontSize: 16,
     textAlign: 'center',
   },
   errorText: {
-    color: '#ff4d4d',
+    color: '#ff0000',
     fontSize: 14,
     textAlign: 'center',
     marginTop: 10,
-    paddingHorizontal: 20,
   },
   scanAgainButton: {
     position: 'absolute',
     bottom: 50,
-    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
     backgroundColor: '#bcba40',
-    paddingVertical: 12,
+    marginHorizontal: 20,
     paddingHorizontal: 20,
     borderRadius: 8,
   },
-  scanAgainButtonText: {
+  scanAgainText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  loadingOverlay: {
+  scannerLoading: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.8)',
   },
-  loadingText: {
+  scannerLoadingText: {
     color: 'white',
     fontSize: 18,
     marginTop: 20,
   },
-  loadingContainer: {
+  downloadProgress: {
+    position: 'absolute',
+    bottom: 180,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  downloadText: {
+    color: 'white',
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  progressBarContainer: {
+    width: '80%',
+    height: 8,
+    backgroundColor: '#333',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#bcba40',
+  },
+  permissionContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'black',
+    backgroundColor: 'rgba(0,0,0,0.8)',
   },
+  permissionText: {
+    color: 'white',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  permissionButton: {
+    backgroundColor: '#bcba40',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  permissionButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  }
 });
+
+export default ModelFetchScreen;
