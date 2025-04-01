@@ -13,7 +13,8 @@ import {
   ViroMaterials,
   ViroErrorEvent,
 } from '@reactvision/react-viro';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useNavigation } from 'expo-router';
+import { BackHandler } from 'react-native';
 
 // Helper function to extract error message
 const getErrorMessage = (error: unknown): string => {
@@ -117,6 +118,7 @@ const ARScene: React.FC<ARSceneProps> = (props) => {
   const materialsTimeout = useRef<NodeJS.Timeout>();
   const mounted = useRef(true);
   const baseScale = useRef(0.1);
+  const navigation = useNavigation();
 
   useEffect(() => {
     console.log('[ARScene] Initializing with props:', {
@@ -164,6 +166,46 @@ const ARScene: React.FC<ARSceneProps> = (props) => {
       }
     };
   }, [modelLoaded]);
+
+  // Handle back button and cleanup
+  useEffect(() => {
+    const backHandler = () => {
+      // Clean up and navigate to resources screen
+      if (mounted.current) {
+        mounted.current = false;
+        if (materialsTimeout.current) {
+          clearTimeout(materialsTimeout.current);
+        }
+        router.replace("/(tabs)/ResourcesScreen");
+      }
+      return true;
+    };
+
+    // Add back button handler
+    if (Platform.OS === 'android') {
+      BackHandler.addEventListener('hardwareBackPress', backHandler);
+    }
+
+    // Add navigation event listener
+    const unsubscribe = navigation.addListener('beforeRemove', () => {
+      mounted.current = false;
+      if (materialsTimeout.current) {
+        clearTimeout(materialsTimeout.current);
+      }
+    });
+
+    return () => {
+      console.log('[ARScene] Unmounting and cleaning up');
+      mounted.current = false;
+      if (materialsTimeout.current) {
+        clearTimeout(materialsTimeout.current);
+      }
+      if (Platform.OS === 'android') {
+        BackHandler.removeEventListener('hardwareBackPress', backHandler);
+      }
+      unsubscribe();
+    };
+  }, [navigation]);
 
   // Adjust scale based on model load success
   const handleLoadEnd = () => {
@@ -379,7 +421,7 @@ export default function ViroARScreen() {
   };
 
   const handleBack = () => {
-    router.back();
+    router.replace("/(tabs)/ResourcesScreen");
   };
 
   if (!params.modelUri) {
