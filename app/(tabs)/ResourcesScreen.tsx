@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Image, Pressable, ViewStyle, TextStyle, ImageStyle, useWindowDimensions } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ResourcesScreen() {
   const { width, height } = useWindowDimensions();
@@ -20,6 +21,19 @@ export default function ResourcesScreen() {
     justifyContent: 'center',
     alignItems: 'center',
     padding: 6,
+  };
+
+  const handleStartScanning = async () => {
+    try {
+      // Clear any previous model URI
+      await AsyncStorage.removeItem('currentModelUri');
+      // Navigate directly to the model fetch screen
+      router.push('/model-fetch');
+    } catch (error) {
+      console.error('Error clearing AsyncStorage:', error);
+      // Navigate anyway
+      router.push('/model-fetch');
+    }
   };
 
   return (
@@ -60,7 +74,7 @@ export default function ResourcesScreen() {
       {/* Second Row */}
       <View style={styles.row}>
         <View style={[boxBorderStyle]}>
-          <Pressable onPress={() => router.push("/unified-ar")}>
+          <Pressable onPress={handleStartScanning}>
             <Image 
               source={require('../../assets/images/interfaceIcons_Artboard39.png')} 
               style={[styles.IconStyle, { width: imageSize, height: imageSize }]} 

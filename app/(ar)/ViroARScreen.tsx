@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, Dimensions, Alert } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, Dimensions, NativeSyntheticEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Camera, CameraView, CameraType } from 'expo-camera';
+import { Camera, CameraView } from 'expo-camera';
 import type { BarcodeScanningResult } from 'expo-camera';
 import { useCameraPermissions } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
-import { ViroARScene, ViroARSceneNavigator, ViroMaterials, ViroAmbientLight, ViroSpotLight, ViroNode, Viro3DObject } from '@reactvision/react-viro';
+import {
+  ViroARScene,
+  ViroARSceneNavigator,
+  Viro3DObject,
+  ViroAmbientLight,
+  ViroSpotLight,
+  ViroNode,
+  ViroMaterials,
+} from '@reactvision/react-viro';
+import type { ViroErrorEvent } from '@reactvision/react-viro/dist/components/Types/ViroEvents';
 
 // Important: Globally declare modelLoadingState
 declare global {
@@ -16,102 +25,133 @@ declare global {
   };
 }
 
+// Helper function to extract error message
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return 'Unknown error occurred';
+};
+
+// Helper function to ensure model is downloaded locally
+const ensureLocalModel = async (uri: string): Promise<string> => {
+  console.log('[Model] Ensuring local model for:', uri);
+  // For now, just return the URI as is - we'll implement downloading later if needed
+  return uri;
+};
+
 // Main UnifiedARScreen component
 const UnifiedARScreen = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(true);
   const [modelUri, setModelUri] = useState<string | null>(null);
-  const [showScanner, setShowScanner] = useState(true);
+  const hasStartedLoading = useRef(false);
+  const isNavigating = useRef(false);
+  const errorCount = useRef(0);
+  const MAX_ERRORS = 3;
 
-  // Set up global loading state handlers
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      globalThis.modelLoadingState = {
-        setIsLoading,
-        setLoadingError
-      };
-    }
+    console.log('[Lifecycle] UnifiedARScreen mounted');
     return () => {
-      if (typeof window !== 'undefined') {
-        globalThis.modelLoadingState = {};
-      }
+      console.log('[Lifecycle] UnifiedARScreen unmounted');
+      hasStartedLoading.current = false;
+      isNavigating.current = false;
+      errorCount.current = 0;
     };
   }, []);
 
-  // Handle successful model scan
-  const handleModelScanned = useCallback((uri: string) => {
-    console.log('Model scanned, transitioning to AR view with URI:', uri);
-    setModelUri(uri);
-    setShowScanner(false);
-    setIsLoading(false);
-    setLoadingError(null);
-  }, []);
+  const handleModelScanned = async (scannedUri: string) => {
+    console.log('[Navigation] handleModelScanned called with:', scannedUri);
+    
+    if (isNavigating.current) {
+      console.log('[Navigation] Already navigating, ignoring scan');
+      return;
+    }
 
-  // If there's an error or user wants to scan again
-  const handleBackToScanner = useCallback(() => {
-    setShowScanner(true);
-    setModelUri(null);
-    setIsLoading(false);
-    setLoadingError(null);
-  }, []);
+    try {
+      isNavigating.current = true;
+      console.log('[State] Setting isScanning to false');
+      setIsScanning(false);
+      
+      const localUri = await ensureLocalModel(scannedUri);
+      console.log('[State] Setting modelUri to:', localUri);
+      setModelUri(localUri);
+      
+      hasStartedLoading.current = true;
+      errorCount.current = 0;
+    } catch (error) {
+      console.error('[Error] Failed to handle scanned model:', error);
+      handleBackToScanner();
+    } finally {
+      isNavigating.current = false;
+    }
+  };
 
-  if (isLoading) {
+  const handleBackToScanner = () => {
+    console.log('[Navigation] handleBackToScanner called');
+    console.log('[State] Current error count:', errorCount.current);
+    
+    if (errorCount.current >= MAX_ERRORS) {
+      console.log('[Error] Max errors reached, forcing scanner');
+      hasStartedLoading.current = false;
+      errorCount.current = 0;
+    }
+
+    if (!hasStartedLoading.current) {
+      console.log('[Navigation] Resetting to scanner');
+      setModelUri(null);
+      setIsScanning(true);
+    } else {
+      console.log('[Navigation] Model loading started, ignoring back to scanner');
+    }
+  };
+
+  const handleLoadStart = () => {
+    console.log('[AR] Model load started');
+    hasStartedLoading.current = true;
+  };
+
+  const handleLoadEnd = () => {
+    console.log('[AR] Model load ended successfully');
+    errorCount.current = 0;
+  };
+
+  const handleError = (error: unknown) => {
+    console.error('[AR] Error in AR scene:', error);
+    errorCount.current += 1;
+    
+    if (errorCount.current >= MAX_ERRORS) {
+      console.log('[Error] Max errors reached in AR scene');
+      handleBackToScanner();
+    }
+  };
+
+  if (isScanning) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#bcba40" />
-        <Text style={styles.loadingText}>Loading model...</Text>
-      </View>
+      <QRScanner onModelScanned={handleModelScanned} />
     );
   }
 
-  if (loadingError) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{loadingError}</Text>
-        <TouchableOpacity style={styles.button} onPress={handleBackToScanner}>
-          <Text style={styles.buttonText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (showScanner) {
-    return <QRScannerView onModelScanned={handleModelScanned} />;
-  }
-
-  if (modelUri) {
-    return (
-      <ViroARSceneNavigator
-        initialScene={{
-          scene: ARScene as unknown as () => JSX.Element,
-        }}
-        viroAppProps={{
-          modelUri,
-          onError: (error: string) => {
-            console.error('AR Scene Error:', error);
-            setLoadingError(error);
-            handleBackToScanner();
-          },
-          onLoadStart: () => {
-            console.log('Model load started');
-            setIsLoading(true);
-          },
-          onLoadEnd: () => {
-            console.log('Model load completed');
-            setIsLoading(false);
-          },
-        }}
-        style={styles.arView}
-      />
-    );
-  }
-
-  // Fallback to scanner
-  return <QRScannerView onModelScanned={handleModelScanned} />;
+  return (
+    <ViroARSceneNavigator
+      initialScene={{
+        scene: ARScene as any, // Type assertion needed for Viro's scene prop
+      }}
+      viroAppProps={{
+        modelUri: modelUri || '',
+        onError: handleError,
+        onLoadStart: handleLoadStart,
+        onLoadEnd: handleLoadEnd,
+      }}
+      style={styles.flex}
+    />
+  );
 };
 
 // QR Scanner Component
-const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) => void }) => {
+const QRScanner = ({ onModelScanned }: { onModelScanned: (modelUri: string) => void }) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -191,7 +231,7 @@ const QRScannerView = ({ onModelScanned }: { onModelScanned: (modelUri: string) 
       }
     } catch (error) {
       console.error('Error processing QR code:', error);
-      setError(error instanceof Error ? error.message : 'Failed to process QR code');
+      setError(getErrorMessage(error));
       isNavigating.current = false;
       setScanned(false);
     } finally {
@@ -363,186 +403,94 @@ interface ARSceneProps {
   sceneNavigator: {
     viroAppProps: {
       modelUri: string;
-      onError: (error: string) => void;
+      onError: (error: unknown) => void;
       onLoadStart: () => void;
       onLoadEnd: () => void;
     };
   };
 }
 
-const ARScene = (props: ARSceneProps) => {
+const ARScene: React.FC<ARSceneProps> = (props) => {
   const [modelLoaded, setModelLoaded] = useState(false);
-  const [modelLoadAttempted, setModelLoadAttempted] = useState(false);
   const modelUri = props.sceneNavigator.viroAppProps.modelUri;
   
   useEffect(() => {
-    console.log('AR Scene received modelUri:', modelUri);
+    console.log('[ARScene] Initializing with modelUri:', modelUri);
   }, [modelUri]);
 
-  // Handle model load events
   const onLoadStart = () => {
-    console.log('Model load started for:', modelUri);
-    setModelLoadAttempted(true);
+    console.log('[ARScene] Model load started:', modelUri);
     setModelLoaded(false);
-    if (global.modelLoadingState?.setIsLoading) {
-      global.modelLoadingState.setIsLoading(true);
-    }
+    props.sceneNavigator.viroAppProps.onLoadStart();
   };
-  
+
   const onLoadEnd = () => {
-    console.log('Model load completed for:', modelUri);
+    console.log('[ARScene] Model load ended:', modelUri);
     setModelLoaded(true);
-    if (global.modelLoadingState?.setIsLoading) {
-      global.modelLoadingState.setIsLoading(false);
-    }
-    
-    // Try to initialize materials after a delay
-    setTimeout(() => {
+    props.sceneNavigator.viroAppProps.onLoadEnd();
+  };
+
+  const onError = (event: NativeSyntheticEvent<ViroErrorEvent>) => {
+    const errorMessage = event.nativeEvent.error || 'Unknown error loading model';
+    console.error('[ARScene] Error loading model:', errorMessage);
+    props.sceneNavigator.viroAppProps.onError(errorMessage);
+  };
+
+  // Initialize materials after model is loaded
+  useEffect(() => {
+    if (modelLoaded) {
       try {
-        if (typeof ViroMaterials !== 'undefined' && ViroMaterials !== null) {
-          ViroMaterials.createMaterials({
-            defaultMaterial: {
-              lightingModel: "Blinn",
-              diffuseColor: '#FFFFFF',
-              shininess: 0.5,
-            }
-          });
-          console.log('Materials created successfully');
-        }
+        ViroMaterials.createMaterials({
+          defaultMaterial: {
+            lightingModel: "Blinn",
+            diffuseColor: '#FFFFFF',
+            shininess: 0.5,
+          }
+        });
+        console.log('[ARScene] Materials created successfully');
       } catch (error) {
-        console.error('Error creating materials:', error);
+        console.error('[ARScene] Error creating materials:', getErrorMessage(error));
+        props.sceneNavigator.viroAppProps.onError(getErrorMessage(error));
       }
-    }, 1000);
-  };
-  
-  const onError = (event: any) => {
-    console.error('Error loading model:', event, 'modelUri:', modelUri);
-    if (global.modelLoadingState?.setLoadingError) {
-      global.modelLoadingState.setLoadingError(`Failed to load 3D model: ${event.nativeEvent?.error || 'Unknown error'}`);
     }
-  };
+  }, [modelLoaded]);
 
-  // Scale settings based on model type - adjust as needed
-  const getModelScale = () => {
-    // Default scale for most models
-    return [0.05, 0.05, 0.05] as [number, number, number];
-  };
-
-  // Determine whether to use fallback model
-  const shouldUseFallbackModel = !modelUri || modelLoadAttempted && !modelLoaded;
-  
   return (
     <ViroARScene>
       <ViroAmbientLight color="#ffffff" intensity={200} />
       <ViroSpotLight
         innerAngle={5}
-        outerAngle={25}
+        outerAngle={90}
         direction={[0, -1, -0.2]}
         position={[0, 3, 1]}
         color="#ffffff"
         castsShadow={true}
       />
       
-      <ViroNode position={[0, 0, 0]} dragType="FixedToWorld">
-        {modelUri && !shouldUseFallbackModel ? (
-          <Viro3DObject
-            source={{ uri: modelUri }}
-            position={[0, 0, -0.5]}
-            scale={getModelScale()}
-            rotation={[0, 0, 0]}
-            type="GLB"
-            onLoadStart={onLoadStart}
-            onLoadEnd={onLoadEnd}
-            onError={onError}
-          />
-        ) : (
-          <Viro3DObject
-            source={require('@/assets/models/larynx_with_muscles_and_ligaments.glb')}
-            position={[0, 0, -0.5]}
-            scale={[0.05, 0.05, 0.05]}
-            rotation={[0, 0, 0]}
-            type="GLB"
-            onLoadStart={onLoadStart}
-            onLoadEnd={onLoadEnd}
-            onError={onError}
-          />
-        )}
+      <ViroNode position={[0, 0, -1]} dragType="FixedToWorld">
+        <Viro3DObject
+          source={{ uri: modelUri }}
+          position={[0, 0, 0]}
+          scale={[0.2, 0.2, 0.2]}
+          type="GLB"
+          onLoadStart={onLoadStart}
+          onLoadEnd={onLoadEnd}
+          onError={onError}
+        />
       </ViroNode>
     </ViroARScene>
   );
 };
 
-// Simplified AR View Component
-const ARView = ({ modelUri }: { modelUri: string }) => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Log the modelUri to help with debugging
-  useEffect(() => {
-    console.log('ARView received modelUri:', modelUri);
-  }, [modelUri]);
-
-  // Setup global handlers for model loading state
-  useEffect(() => {
-    if (!global.modelLoadingState) {
-      global.modelLoadingState = {};
-    }
-    
-    global.modelLoadingState.setIsLoading = (isLoading: boolean) => setLoading(isLoading);
-    global.modelLoadingState.setLoadingError = (error: string | null) => setError(error);
-    
-    return () => {
-      if (global.modelLoadingState) {
-        global.modelLoadingState.setIsLoading = undefined;
-        global.modelLoadingState.setLoadingError = undefined;
-      }
-    };
-  }, []);
-
-  // Simplified initialization of ViroARScene - no complex logic
-  const initScene = () => {
-    return <ARScene sceneNavigator={{ viroAppProps: { modelUri, onError: () => {}, onLoadStart: () => {}, onLoadEnd: () => {} } }} />;
-  };
-
-  return (
-    <View style={styles.arContainer}>
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#bcba40" />
-          <Text style={styles.loadingText}>Loading 3D model...</Text>
-        </View>
-      )}
-      
-      {error && (
-        <View style={styles.errorOverlay}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.errorButton}
-            onPress={() => setError(null)}
-          >
-            <Text style={styles.errorButtonText}>Dismiss</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      
-      <ViroARSceneNavigator
-        autofocus={true}
-        initialScene={{
-          scene: initScene,
-        }}
-        viroAppProps={{ modelUri: modelUri }}
-        style={styles.arView}
-      />
-    </View>
-  );
-};
-
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F5FCFF',
   },
   loadingText: {
     marginTop: 10,
