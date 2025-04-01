@@ -111,9 +111,12 @@ interface ARSceneProps {
 
 const ARScene: React.FC<ARSceneProps> = (props) => {
   const [modelLoaded, setModelLoaded] = useState(false);
+  const [modelScale, setModelScale] = useState<[number, number, number]>([0.1, 0.1, 0.1]);
+  const [rotation, setRotation] = useState<[number, number, number]>([0, 0, 0]);
   const materialsCreated = useRef(false);
   const materialsTimeout = useRef<NodeJS.Timeout>();
   const mounted = useRef(true);
+  const baseScale = useRef(0.1);
 
   useEffect(() => {
     console.log('[ARScene] Initializing with props:', {
@@ -162,6 +165,35 @@ const ARScene: React.FC<ARSceneProps> = (props) => {
     };
   }, [modelLoaded]);
 
+  // Adjust scale based on model load success
+  const handleLoadEnd = () => {
+    console.log('[Model] Load completed for:', props.sceneNavigator.viroAppProps.modelUri);
+    baseScale.current = 0.1;
+    setModelScale([baseScale.current, baseScale.current, baseScale.current]);
+    setModelLoaded(true);
+    props.sceneNavigator.viroAppProps.onLoadEnd();
+  };
+
+  const onPinch = (pinchState: any, scaleFactor: number, source: any) => {
+    if (pinchState === 3) { // END
+      baseScale.current = modelScale[0];
+      return;
+    }
+
+    const newScale = baseScale.current * scaleFactor;
+    // Limit scale between 0.01 and 2.0
+    const clampedScale = Math.min(Math.max(newScale, 0.01), 2.0);
+    setModelScale([clampedScale, clampedScale, clampedScale]);
+  };
+
+  const onRotate = (rotateState: any, rotationFactor: number, source: any) => {
+    if (rotateState === 3) { // END
+      return;
+    }
+
+    setRotation([0, rotation[1] + rotationFactor, 0]);
+  };
+
   return (
     <ViroARScene>
       <ViroAmbientLight color="#ffffff" intensity={200} />
@@ -178,7 +210,14 @@ const ARScene: React.FC<ARSceneProps> = (props) => {
         shadowFarZ={5}
         shadowOpacity={.7}
       />
-      <ViroNode position={[0, 0, -1]} scale={[0.1, 0.1, 0.1]}>
+      <ViroNode 
+        position={[0, -0.5, -1]} 
+        scale={modelScale}
+        rotation={rotation}
+        onPinch={onPinch}
+        onRotate={onRotate}
+        dragType="FixedToWorld"
+      >
         <Viro3DObject
           source={{ uri: props.sceneNavigator.viroAppProps.modelUri }}
           type="GLB"
@@ -189,11 +228,7 @@ const ARScene: React.FC<ARSceneProps> = (props) => {
             console.log('[Model] Load started for:', props.sceneNavigator.viroAppProps.modelUri);
             props.sceneNavigator.viroAppProps.onLoadStart();
           }}
-          onLoadEnd={() => {
-            console.log('[Model] Load completed for:', props.sceneNavigator.viroAppProps.modelUri);
-            setModelLoaded(true);
-            props.sceneNavigator.viroAppProps.onLoadEnd();
-          }}
+          onLoadEnd={handleLoadEnd}
           onError={(errorEvent: NativeSyntheticEvent<ViroErrorEvent>) => {
             const error = errorEvent.nativeEvent.error || 'Failed to load model';
             console.error('[Model] Load error:', error, 'for:', props.sceneNavigator.viroAppProps.modelUri);
