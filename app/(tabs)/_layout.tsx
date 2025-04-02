@@ -64,9 +64,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="ResourcesScreen"
+        name="CoursesScreen"
         options={{
-          title: 'Resources',
+          title: 'Courses',
           headerShown: false,
           tabBarIcon: ({ color }) => (
             <TabBarIcon name="folder-open" color={color} />
@@ -74,9 +74,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="CoursesScreen"
+        name="ResourcesScreen"
         options={{
-          title: 'Courses',
+          title: 'Resources',
           headerShown: false,
           tabBarIcon: ({ color }) => (
             <TabBarIcon name="graduation-cap" color={color} />

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Animated, Platform, NativeSyntheticEvent, Pressable } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, NativeSyntheticEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
@@ -13,9 +13,7 @@ import {
   ViroMaterials,
   ViroErrorEvent,
 } from '@reactvision/react-viro';
-import { useLocalSearchParams, router, useNavigation } from 'expo-router';
-import { BackHandler } from 'react-native';
-import { ActivityIndicator } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
 
 // Helper function to extract error message
 const getErrorMessage = (error: unknown): string => {
@@ -99,360 +97,226 @@ const downloadModel = async (
   }
 };
 
-// Type for ViroARSceneNavigator scene
-type SceneType = {
-  scene: () => JSX.Element;
+// Type for scene props from ViroARSceneNavigator
+type SceneProps = {
+  sceneNavigator: {
+    viroAppProps: {
+      modelUri: string;
+    };
+  };
 };
 
 // Type for ARScene props
-interface ARSceneProps {
-  modelUri: string;
-  onError?: (error: string) => void;
-  onLoadStart?: () => void;
-  onLoadEnd?: () => void;
-}
+type ARSceneProps = SceneProps & {
+  onError: (error: unknown) => void;
+  onLoadStart: () => void;
+  onLoadEnd: () => void;
+};
+
+// LoadingIndicator component
+const LoadingIndicator: React.FC<{ progress?: number; message: string }> = ({ progress, message }) => (
+  <View style={styles.loadingBox}>
+    <Text style={styles.loadingText}>{message}</Text>
+    {progress !== undefined && (
+      <Text style={styles.progressText}>{Math.round(progress * 100)}%</Text>
+    )}
+  </View>
+);
 
 // ARScene component
 const ARScene: React.FC<ARSceneProps> = (props) => {
   const [modelLoaded, setModelLoaded] = useState(false);
-  const [modelScale, setModelScale] = useState<[number, number, number]>([0.1, 0.1, 0.1]);
-  const [rotation, setRotation] = useState<[number, number, number]>([0, 0, 0]);
-  const materialsCreated = useRef(false);
-  const materialsTimeout = useRef<NodeJS.Timeout>();
   const mounted = useRef(true);
-  const baseScale = useRef(0.1);
-  const navigation = useNavigation();
-  const { modelUri, onError, onLoadStart, onLoadEnd } = props;
 
   useEffect(() => {
-    console.log('[ARScene] Initializing with props:', {
-      modelUri: modelUri,
-      hasModel: !!modelUri,
-      modelUriType: typeof modelUri
-    });
-    
-    // Verify the model URI is valid
-    if (!modelUri) {
-      console.error('[ARScene] No model URI provided');
-      onError && onError('No model URI provided');
-      return;
-    }
-
     return () => {
-      console.log('[ARScene] Unmounting');
       mounted.current = false;
-      if (materialsTimeout.current) {
-        clearTimeout(materialsTimeout.current);
-      }
     };
   }, []);
 
   useEffect(() => {
-    if (modelLoaded && !materialsCreated.current && mounted.current) {
-      console.log('[ARScene] Model loaded, creating materials');
-      materialsTimeout.current = setTimeout(() => {
-        try {
-          if (safeCreateMaterials()) {
-            console.log('[ARScene] Materials created successfully');
-            materialsCreated.current = true;
-          } else {
-            console.warn('[ARScene] Failed to create materials');
-          }
-        } catch (error) {
-          console.error('[ARScene] Error creating materials:', error);
-        }
-      }, 500);
+    if (modelLoaded) {
+      safeCreateMaterials();
     }
-
-    return () => {
-      if (materialsTimeout.current) {
-        clearTimeout(materialsTimeout.current);
-      }
-    };
   }, [modelLoaded]);
 
-  // Handle back button and cleanup
-  useEffect(() => {
-    const backHandler = () => {
-      // Clean up and navigate to resources screen
-      if (mounted.current) {
-        mounted.current = false;
-        if (materialsTimeout.current) {
-          clearTimeout(materialsTimeout.current);
-        }
-        router.replace("/(tabs)/ResourcesScreen");
-      }
-      return true;
-    };
-
-    // Add back button handler
-    if (Platform.OS === 'android') {
-      BackHandler.addEventListener('hardwareBackPress', backHandler);
+  const handleError = (event: NativeSyntheticEvent<ViroErrorEvent>) => {
+    if (mounted.current) {
+      props.onError(event.nativeEvent);
     }
+  };
 
-    // Add navigation event listener
-    const unsubscribe = navigation.addListener('beforeRemove', () => {
-      mounted.current = false;
-      if (materialsTimeout.current) {
-        clearTimeout(materialsTimeout.current);
-      }
-    });
+  const handleLoadStart = () => {
+    if (mounted.current) {
+      props.onLoadStart();
+    }
+  };
 
-    return () => {
-      console.log('[ARScene] Unmounting and cleaning up');
-      mounted.current = false;
-      if (materialsTimeout.current) {
-        clearTimeout(materialsTimeout.current);
-      }
-      if (Platform.OS === 'android') {
-        BackHandler.removeEventListener('hardwareBackPress', backHandler);
-      }
-      unsubscribe();
-    };
-  }, [navigation]);
-
-  // Adjust scale based on model load success
   const handleLoadEnd = () => {
-    console.log('[Model] Load completed for:', modelUri);
-    baseScale.current = 0.1;
-    setModelScale([baseScale.current, baseScale.current, baseScale.current]);
-    setModelLoaded(true);
-    onLoadEnd && onLoadEnd();
-  };
-
-  const onPinch = (pinchState: any, scaleFactor: number, source: any) => {
-    if (pinchState === 3) { // END
-      baseScale.current = modelScale[0];
-      return;
+    if (mounted.current) {
+      setModelLoaded(true);
+      props.onLoadEnd();
     }
-
-    const newScale = baseScale.current * scaleFactor;
-    // Limit scale between 0.01 and 2.0
-    const clampedScale = Math.min(Math.max(newScale, 0.01), 2.0);
-    setModelScale([clampedScale, clampedScale, clampedScale]);
-  };
-
-  const onRotate = (rotateState: any, rotationFactor: number, source: any) => {
-    if (rotateState === 3) { // END
-      return;
-    }
-
-    setRotation([0, rotation[1] + rotationFactor, 0]);
   };
 
   return (
     <ViroARScene>
       <ViroAmbientLight color="#ffffff" intensity={200} />
       <ViroSpotLight
-        innerAngle={5}
-        outerAngle={45}
-        direction={[0, -1, -.2]}
-        position={[0, 3, 1]}
+        position={[0, 3, 0]}
         color="#ffffff"
+        direction={[0, -1, 0]}
+        attenuationStartDistance={5}
+        attenuationEndDistance={10}
+        innerAngle={5}
+        outerAngle={20}
         castsShadow={true}
-        influenceBitMask={2}
-        shadowMapSize={2048}
-        shadowNearZ={2}
-        shadowFarZ={5}
-        shadowOpacity={.7}
       />
-      <ViroNode 
-        position={[0, -0.5, -1]} 
-        scale={modelScale}
-        rotation={rotation}
-        onPinch={onPinch}
-        onRotate={onRotate}
-        dragType="FixedToWorld"
-      >
+      <ViroNode position={[0, -1, -3]}>
         <Viro3DObject
-          source={{ uri: modelUri }}
+          source={{ uri: props.sceneNavigator.viroAppProps.modelUri }}
           type="GLB"
-          scale={[1, 1, 1]}
+          scale={[0.05, 0.05, 0.05]}
           position={[0, 0, 0]}
-          materials={["defaultMaterial"]}
-          onLoadStart={() => {
-            console.log('[Model] Load started for:', modelUri);
-            onLoadStart && onLoadStart();
-          }}
+          rotation={[0, 0, 0]}
+          onError={handleError}
+          onLoadStart={handleLoadStart}
           onLoadEnd={handleLoadEnd}
-          onError={(errorEvent: NativeSyntheticEvent<ViroErrorEvent>) => {
-            const error = errorEvent.nativeEvent.error;
-            console.error('[Model] Load error:', error, 'for:', modelUri);
-            onError && onError(getErrorMessage(error));
-          }}
         />
       </ViroNode>
     </ViroARScene>
   );
 };
 
-const ViroARScreen: React.FC = () => {
-  const params = useLocalSearchParams<{ modelUri: string }>();
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+// Main ViroARScreen component
+const ViroARScreen = () => {
+  const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const [localModelUri, setLocalModelUri] = useState<string | null>(null);
-  const mounted = useRef(true);
-  const navigation = useNavigation();
+  const params = useLocalSearchParams();
+  const modelUri = params.modelUri as string;
 
   useEffect(() => {
-    // Set up navigation options
-    navigation.setOptions({
-      headerLeft: () => (
-        <Pressable onPress={handleBack} style={{ marginLeft: 16 }}>
-          <Text style={{ color: '#007AFF', fontSize: 16 }}>Back</Text>
-        </Pressable>
-      ),
-    });
-
-    return () => {
-      mounted.current = false;
-    };
-  }, [navigation]);
-
-  const handleBack = useCallback(() => {
-    if (mounted.current) {
-      mounted.current = false;
-      router.replace("/(tabs)/ResourcesScreen");
-    }
-  }, []);
-
-  // Clean up when component unmounts
-  useEffect(() => {
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  // Prepare the model when component mounts
-  useEffect(() => {
-    if (!params.modelUri) {
-      console.error('[ViroARScreen] No model URI provided');
-      setError('No model URI provided');
-      return;
-    }
-
-    const prepareModel = async () => {
-      if (!mounted.current) return;
-
+    const loadModel = async () => {
+      if (!modelUri) return;
+      
+      setIsDownloading(true);
+      setError(null);
+      
       try {
-        console.log('[ViroARScreen] Preparing model from:', params.modelUri);
-        
-        // Check if the file exists locally
-        const fileInfo = await FileSystem.getInfoAsync(params.modelUri);
-        console.log('[ViroARScreen] File info:', fileInfo);
-
-        if (fileInfo.exists) {
-          console.log('[ViroARScreen] Using local model file');
-          setLocalModelUri(params.modelUri);
-          setIsLoading(false);
-          return;
-        }
-
-        // If not local, download it
-        setIsDownloading(true);
-        const localUri = await downloadModel(params.modelUri, (progress) => {
-          console.log('[ViroARScreen] Download progress:', progress);
-        });
-        
-        if (mounted.current) {
+        const localUri = await downloadModel(modelUri, setDownloadProgress);
+        if (localUri.startsWith('file://')) {
           setLocalModelUri(localUri);
-          setIsDownloading(false);
-          setIsLoading(false);
+        } else {
+          setLocalModelUri(`file://${localUri}`);
         }
       } catch (err) {
-        console.error('[ViroARScreen] Error preparing model:', err);
-        if (mounted.current) {
-          setError(getErrorMessage(err));
-          setIsLoading(false);
-          setIsDownloading(false);
-        }
+        setError(getErrorMessage(err));
+      } finally {
+        setIsDownloading(false);
       }
     };
 
-    prepareModel();
-  }, [params.modelUri]);
+    loadModel();
+  }, [modelUri]);
 
-  if (!params.modelUri) {
+  const handleBackPress = () => {
+    router.back();
+  };
+
+  const handleError = (error: unknown) => {
+    setError(getErrorMessage(error));
+    setIsLoading(false);
+  };
+
+  const handleLoadStart = () => {
+    setIsLoading(true);
+    setError(null);
+  };
+
+  const handleLoadEnd = () => {
+    setIsLoading(false);
+  };
+
+  if (!modelUri) {
     return (
       <View style={styles.container}>
-        <Text>No model URI provided</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable onPress={handleBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  if (isDownloading || isLoading) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text style={styles.loadingText}>
-          {isDownloading ? 'Downloading model...' : 'Loading...'}
-        </Text>
+        <Text style={styles.errorText}>No model URI provided</Text>
       </View>
     );
   }
 
   return (
-    <ViroARSceneNavigator
-      initialScene={{
-        scene: () => <ARScene modelUri={localModelUri || params.modelUri} 
-          onError={(error: string) => {
-            console.error('[ViroARScreen] AR Scene error:', error);
-            setError(error);
-          }}
-          onLoadStart={() => {
-            console.log('[ViroARScreen] Model load starting');
-            setIsLoading(true);
-          }}
-          onLoadEnd={() => {
-            console.log('[ViroARScreen] Model load completed');
-            if (mounted.current) {
-              setIsLoading(false);
-            }
-          }}
-        />,
-      }}
-      style={styles.arView}
-    />
+    <View style={styles.container}>
+      <ViroARSceneNavigator
+        autofocus={true}
+        initialScene={{
+          scene: () => (
+            <ARScene
+              sceneNavigator={{ viroAppProps: { modelUri: localModelUri || modelUri } }}
+              onError={handleError}
+              onLoadStart={handleLoadStart}
+              onLoadEnd={handleLoadEnd}
+            />
+          ),
+        }}
+        style={styles.arView}
+      />
+      
+      <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+        <Ionicons name="arrow-back" size={24} color="white" />
+      </TouchableOpacity>
+
+      {(isDownloading || isLoading || error) && (
+        <View style={styles.overlay}>
+          {isDownloading && !error && (
+            <LoadingIndicator 
+              progress={downloadProgress} 
+              message="Downloading 3D Model" 
+            />
+          )}
+          {isLoading && !isDownloading && !error && (
+            <LoadingIndicator message="Loading 3D Model" />
+          )}
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={() => router.replace('/qr-scanner')}>
+                <Text style={styles.buttonText}>Try Again</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
   );
 };
+
+export default ViroARScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#000',
   },
   arView: {
     flex: 1,
   },
-  errorText: {
-    color: '#ff4444',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  backButton: {
-    flexDirection: 'row',
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    padding: 10,
-    borderRadius: 20,
   },
-  backButtonText: {
-    color: 'white',
-    marginLeft: 8,
-    fontSize: 16,
+  loadingBox: {
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    borderRadius: 15,
+    padding: 20,
+    alignItems: 'center',
+    width: Dimensions.get('window').width * 0.8,
+    maxWidth: 300,
   },
   loadingText: {
     color: '#ffffff',
@@ -460,6 +324,42 @@ const styles = StyleSheet.create({
     marginTop: 15,
     textAlign: 'center',
   },
+  progressText: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 10,
+  },
+  errorContainer: {
+    padding: 20,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    alignItems: 'center',
+    width: Dimensions.get('window').width * 0.8,
+    maxWidth: 300,
+  },
+  errorText: {
+    color: '#ff4444',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 40,
+    left: 20,
+    zIndex: 1,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
-
-export default ViroARScreen;
